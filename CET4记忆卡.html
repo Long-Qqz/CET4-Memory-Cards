@@ -183,7 +183,7 @@ h1{ font-size:var(--fs-title); line-height:1.15; }
 
 .card3d{ perspective:1400px; }
 .card-inner{
-  position:relative; width:100%; min-height:340px; transform-style:preserve-3d;
+  position:relative; width:100%; min-height:clamp(340px,48vh,700px); transform-style:preserve-3d;
   transition:transform var(--dur-flip) var(--ease-out);
 }
 .card3d.flipped .card-inner{ transform:rotateY(180deg); }
@@ -432,6 +432,37 @@ input.ctl-num{
 @media (min-width:768px){
   #nav{ width:232px; }
 }
+/* ============ responsive: wide screen ============ */
+@media (min-width:1280px){
+  #main{ max-width:max(1120px, calc(100vw - 248px)); }
+  #studyArea{ max-width:1120px; margin:0 auto; }
+  .card-front-word{ font-size:60px; }
+  .rate-btn{ min-height:96px; }
+  .subtitle{ font-size:15px; }
+  .kpi-cell{ padding:24px 30px; }
+  .kpi-value{ font-size:30px; }
+  .today-card{ padding:34px 38px; }
+  .today-counts{ gap:34px; }
+  .today-counts .tc b{ font-size:26px; }
+  .deck-row{ padding:19px 24px; }
+  .deck-due .n{ font-size:24px; }
+  .stats-grid{ grid-template-columns:1fr 1fr; }
+  .stats-card{ min-height:430px; display:flex; flex-direction:column; }
+  .stats-card .ring-lg{ flex:1; }
+  .stats-card #barChart{ flex:1; display:flex; min-height:0; }
+  .stats-card .bars-chart{ height:100%; }
+  .cal-card{ padding:28px; }
+  .cal-day{ min-height:104px; font-size:17px; border-radius:14px; }
+  .cal-title{ font-size:19px; }
+  .search-wrap{ max-width:640px; }
+  .card-item{ padding:19px 24px; }
+  .card-item .front{ font-size:15px; }
+  .set-row{ padding:20px 0; }
+  .set-info{ flex:1; }
+  .set-info h4{ font-size:15px; }
+  .set-info p{ max-width:760px; }
+  .deck-head{ margin-top:36px; }
+}
 </style>
 </head>
 <body>
@@ -639,6 +670,18 @@ input.ctl-num{
         </div>
         <div class="set-row">
           <div class="set-info">
+            <h4>自动播放发音</h4>
+            <p>跳转到下一个单词时自动播放该词发音（本轮第一个单词不自动播放，避免开场突然出声；需联网）。</p>
+          </div>
+          <div class="set-ctl">
+            <div class="radio-group" id="autoPlayGroup">
+              <button data-autoplay="off" class="on">关</button>
+              <button data-autoplay="on">开</button>
+            </div>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
             <h4>出卡顺序</h4>
             <p>新词的出现顺序：顺序（按词库顺序）、随机（打乱）、组合（相关词连续出现：近义词、反义词、同根/形近词）。</p>
           </div>
@@ -762,12 +805,12 @@ function fmtDate(ts){
 /* ---------- 状态 ---------- */
 let state=null;
 function defaultState(){
-  return {version:1,settings:{scheduler:'sm2',newPerDay:20,voice:'uk',order:'seq'},
+  return {version:1,settings:{scheduler:'sm2',newPerDay:20,voice:'uk',order:'seq',autoPlay:false},
     decks:[{id:'d1',name:'四级词汇',cards:[]}],
     log:[]};
 }
 function loadState(){
-  try{const raw=localStorage.getItem(LS_KEY);if(raw){state=JSON.parse(raw);if(!state.decks)state.decks=[];if(!state.log)state.log=[];if(!state.settings)state.settings=defaultState().settings;if(!state.settings.voice)state.settings.voice='uk';if(!state.settings.order)state.settings.order='seq';return;}}
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){state=JSON.parse(raw);if(!state.decks)state.decks=[];if(!state.log)state.log=[];if(!state.settings)state.settings=defaultState().settings;if(!state.settings.voice)state.settings.voice='uk';if(!state.settings.order)state.settings.order='seq';if(state.settings.autoPlay===undefined)state.settings.autoPlay=false;return;}}
   catch(e){console.warn('state load fail',e);}
   state=defaultState();
 }
@@ -1127,6 +1170,8 @@ function renderStudy(){
   $('#studyPos').textContent=pos+' / '+total;
   setRing($('#studyRingFg'),$('#studyRingPct'),session.answers,total);
   session.flipped=false;
+  /* 自动播放发音：跳转到下一个单词时播放（本轮第一个单词不播） */
+  if(state.settings.autoPlay&&session.answers>0)playWordAudio(c.front,c.audio);
   const tags=c.tags&&c.tags.length?c.tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join(''):'';
   const backHtml=renderBack(c);
   /* 正面只留词性标签（如 [adj]），中文释义留在背面 */
@@ -1538,7 +1583,7 @@ function renderBars(){
     const y=padT+(H-padB-padT)*g/4;
     grid+='<line x1="'+padL+'" y1="'+y+'" x2="'+W+'" y2="'+y+'" stroke="var(--rule)" stroke-width="1"/>';
   }
-  $('#barChart').innerHTML='<svg class="bars-chart" viewBox="0 0 '+W+' '+H+'" aria-label="最近14天复习柱状图">'+grid+bars+labels+'</svg>';
+  $('#barChart').innerHTML='<svg class="bars-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-label="最近14天复习柱状图">'+grid+bars+labels+'</svg>';
   $('#chartNote').textContent='每日复习次数 · 今天为深色 · 共 '+state.log.length+' 次累计';
 }
 
@@ -1651,6 +1696,7 @@ function renderSettings(){
   const g=state.decks.find(x=>x.name==='四级词汇');
   $$('#schedGroup button').forEach(b=>b.classList.toggle('on',b.dataset.sched===state.settings.scheduler));
   $$('#voiceGroup button').forEach(b=>b.classList.toggle('on',b.dataset.voice===state.settings.voice));
+  $$('#autoPlayGroup button').forEach(b=>b.classList.toggle('on',(b.dataset.autoplay==='on')===!!state.settings.autoPlay));
   $$('#orderGroup button').forEach(b=>b.classList.toggle('on',b.dataset.order===state.settings.order));
   $('#newPerDay').value=state.settings.newPerDay;
 }
@@ -1699,6 +1745,10 @@ $$('#schedGroup button').forEach(b=>b.addEventListener('click',()=>{
 $$('#voiceGroup button').forEach(b=>b.addEventListener('click',()=>{
   state.settings.voice=b.dataset.voice;
   saveState();renderSettings();toast('发音音色：'+(b.dataset.voice==='uk'?'英音':'美音'));
+}));
+$$('#autoPlayGroup button').forEach(b=>b.addEventListener('click',()=>{
+  state.settings.autoPlay=b.dataset.autoplay==='on';
+  saveState();renderSettings();toast('自动播放发音：'+(state.settings.autoPlay?'开（下一个单词起自动播放）':'关'));
 }));
 $$('#orderGroup button').forEach(b=>b.addEventListener('click',()=>{
   state.settings.order=b.dataset.order;
