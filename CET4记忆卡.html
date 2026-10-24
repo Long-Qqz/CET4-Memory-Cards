@@ -616,12 +616,12 @@ input.ctl-num{
         <div class="set-row">
           <div class="set-info">
             <h4>调度算法</h4>
-            <p>SM-2 为 Anki 经典间隔重复算法；FSRS 为实验性接口预留（当前回落 SM-2 实现）。算法以接口隔离，可随时替换。</p>
+            <p>SM-2 为 Anki 经典间隔重复算法；FSRS-6 为 Anki 新版默认智能调度（自由回忆率 90%，间隔随记忆稳定性动态增长）。切换后复习卡按新算法重新排期，已学卡片不受影响。</p>
           </div>
           <div class="set-ctl">
             <div class="radio-group" id="schedGroup">
               <button data-sched="sm2" class="on">SM-2</button>
-              <button data-sched="fsrs">FSRS</button>
+              <button data-sched="fsrs">FSRS-6</button>
             </div>
           </div>
         </div>
@@ -778,6 +778,51 @@ function saveState(){
 function cardCount(){return state.decks.reduce((n,d)=>n+d.cards.length,0);}
 
 /* ---------- 调度器（可换接口） ---------- */
+/* ---------- FSRS-6 核心（Anki 新版默认算法；公式与默认参数源自官方 open-spaced-repetition/ts-fsrs，1:1 移植） ---------- */
+const FSRS_W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
+const FSRS_REQ_RET=0.9, FSRS_MAX_IVL=36500, FSRS_S_MIN=0.001, FSRS_S_MAX=36500;
+const FSRS_DECAY=-FSRS_W[20];
+const FSRS_FACTOR=Math.exp(Math.pow(FSRS_DECAY,-1)*Math.log(0.9))-1;
+const FSRS_IVL_MOD=Math.round((Math.pow(FSRS_REQ_RET,1/FSRS_DECAY)-1)/FSRS_FACTOR*1e8)/1e8;
+function fr8(v){return Math.round(v*1e8)/1e8;}
+function fsrsClamp(v,lo,hi){return Math.min(hi,Math.max(lo,v));}
+function fsrsRetrievability(t,s){return fr8(Math.pow(1+FSRS_FACTOR*t/s,FSRS_DECAY));}
+function fsrsNextInterval(s){return Math.min(FSRS_MAX_IVL,Math.max(1,Math.round(s*FSRS_IVL_MOD)));}
+function fsrsInitStability(g){return Math.max(FSRS_W[g-1],0.1);}            /* g:1 again..4 easy */
+function fsrsInitDifficulty(g){return fr8(FSRS_W[4]-Math.exp((g-1)*FSRS_W[5])+1);}
+function fsrsNextDifficulty(d,g){
+  const delta=-FSRS_W[6]*(g-3);
+  const next=d+delta*(10-d)/9;
+  return fsrsClamp(fr8(FSRS_W[7]*fsrsInitDifficulty(4)+(1-FSRS_W[7])*next),1,10);
+}
+function fsrsRecallStability(d,s,r,g){
+  const hp=g===2?FSRS_W[15]:1, eb=g===4?FSRS_W[16]:1;
+  return fsrsClamp(fr8(s*(1+Math.exp(FSRS_W[8])*(11-d)*Math.pow(s,-FSRS_W[9])*(Math.exp((1-r)*FSRS_W[10])-1)*hp*eb)),FSRS_S_MIN,FSRS_S_MAX);
+}
+function fsrsForgetStability(d,s,r){
+  return fsrsClamp(fr8(FSRS_W[11]*Math.pow(d,-FSRS_W[12])*(Math.pow(s+1,FSRS_W[13])-1)*Math.exp((1-r)*FSRS_W[14])),FSRS_S_MIN,FSRS_S_MAX);
+}
+function fsrsShortTerm(s,g){
+  const sinc=Math.pow(s,-FSRS_W[19])*Math.exp(FSRS_W[17]*(g-3+FSRS_W[18]));
+  const ms=g>=2?Math.max(sinc,1):sinc;
+  return fsrsClamp(fr8(s*ms),FSRS_S_MIN,FSRS_S_MAX);
+}
+/* 计算下一次记忆状态；memory 为 {s,d} 或 null（首次评分初始化） */
+function fsrsNextState(memory,t,g){
+  const d=memory?memory.d:0, s=memory?memory.s:0;
+  if(d===0&&s===0){
+    return {difficulty:fsrsClamp(fsrsInitDifficulty(g),1,10), stability:fsrsInitStability(g)};
+  }
+  const r=fsrsRetrievability(t,s);
+  let ns;
+  if(t===0){ ns=fsrsShortTerm(s,g); }
+  else if(g===1){
+    const sf=fsrsForgetStability(d,s,r);
+    const nsMin=s/Math.exp(FSRS_W[17]*FSRS_W[18]);
+    ns=fsrsClamp(fr8(nsMin),FSRS_S_MIN,sf);
+  } else { ns=fsrsRecallStability(d,s,r,g); }
+  return {difficulty:fsrsNextDifficulty(d,g), stability:ns};
+}
 const Schedulers={
   sm2:{
     key:'sm2',name:'SM-2',
@@ -820,15 +865,57 @@ const Schedulers={
     }
   },
   fsrs:{
-    key:'fsrs',name:'FSRS',
-    schedule(card,rating){
-      /* 实验接口：当前回落 SM-2 实现，算法替换不影响上层 */
-      return Schedulers.sm2.schedule(card,rating);
+    key:'fsrs',name:'FSRS-6',
+    /* 学习毕业（首次评分）：以该评分为依据初始化记忆状态并安排首次间隔 */
+    graduate(card,rating){
+      const g=rating+1, now=Date.now();
+      const st=fsrsNextState(null,0,g);
+      const ivl=fsrsNextInterval(st.stability);
+      return {state:'review',due:now+ivl*DAY,interval:ivl,reps:(card.reps||0)+1,fsrs:{s:st.stability,d:st.difficulty,last:now}};
     },
-    nextIntervals(card,rating){return Schedulers.sm2.nextIntervals(card,rating);}
+    /* 复习卡遗忘（Again，进入重学）：算出遗忘后的稳定性，重学毕业时用其定间隔 */
+    lapse(card){
+      const fs=card.fsrs||{s:0,d:0,last:null};
+      const now=Date.now();
+      const t=fs.last?Math.max(0,(now-fs.last)/DAY):0;
+      const st=fsrsNextState({s:fs.s||0,d:fs.d||0},t,1);
+      return {state:'learning',lapseIvl:fsrsNextInterval(st.stability),fsrs:{s:st.stability,d:st.difficulty,last:now}};
+    },
+    /* 重学毕业：按遗忘后的稳定性安排下次复习 */
+    relearnGraduate(card,rating){
+      const fs=card.fsrs||{s:1,d:5,last:null};
+      const now=Date.now();
+      const ivl=fsrsNextInterval(fs.s||1);
+      return {state:'review',due:now+ivl*DAY,interval:ivl,reps:(card.reps||0)+1,lapses:(card.lapses||0)+1};
+    },
+    /* 复习卡成功（非 Again） */
+    schedule(card,rating){
+      const fs=card.fsrs||{s:0,d:0,last:null};
+      const now=Date.now();
+      const t=fs.last?Math.max(0,(now-fs.last)/DAY):0;
+      const st=fsrsNextState({s:fs.s||0,d:fs.d||0},t,rating+1);
+      const ivl=fsrsNextInterval(st.stability);
+      return {state:'review',due:now+ivl*DAY,interval:ivl,reps:(card.reps||0)+1,fsrs:{s:st.stability,d:st.difficulty,last:now}};
+    },
+    nextIntervals(card,rating){
+      if(card.state==='new'||card.state==='learning'){
+        if(card._relearn)return Schedulers.fsrs.relearnGraduate(card,rating).due-Date.now();
+        return Schedulers.fsrs.graduate(card,rating).due-Date.now();
+      }
+      return Schedulers.fsrs.schedule(card,rating).due-Date.now();
+    }
   }
 };
 function getScheduler(){return Schedulers[state.settings.scheduler]||Schedulers.sm2;}
+/* 学习步进（Anki 语义）：新卡/学习卡需完成 LS_STEPS 个学习步进才毕业；
+   答 Again 重置步进并在本轮稍后重现；连续 MAX_AGAIN 次答错后不再重现、留到明天。 */
+const LS_STEPS=2, MAX_AGAIN=3;
+function requeue(item){
+  const q=session.queue,pos=session.pos;
+  let at=pos+Math.max(2,Math.ceil((q.length-pos)/2));
+  if(at>q.length)at=q.length;
+  q.splice(at,0,item);
+}
 
 /* ---------- 队列 ---------- */
 function shuffle(arr){
@@ -889,10 +976,22 @@ function orderByGroups(items){
 function buildQueue(){
   const now=Date.now();
   let due=[], newCards=[];
+  /* 今天最后一次学习的记录（用于"今日已学卡"重复学习排序） */
+  const todayLast=new Map();
+  for(const l of state.log){ if(String(l.day)===todayKey()) todayLast.set(l.cardId,l.ts); }
   for(const d of state.decks) for(const c of d.cards){
     if(c.state==='learning'||c.state==='review'){ if(c.due<=now) due.push({deckId:d.id,card:c}); }
     else if(c.state==='new'){ newCards.push({deckId:d.id,card:c}); }
   }
+  /* 今日已学卡（学习中/已毕业但未到期）→ 支持重复学习，按今天最后一次学习先后排序 */
+  const dueIds=new Set(due.map(x=>x.card.id));
+  const todayCards=[];
+  for(const d of state.decks) for(const c of d.cards){
+    if(c.state!=='new'&&todayLast.has(c.id)&&!dueIds.has(c.id)){
+      todayCards.push({deckId:d.id,card:c,last:todayLast.get(c.id)||0});
+    }
+  }
+  todayCards.sort((a,b)=>a.last-b.last);
   due.sort((a,b)=>a.card.due-b.card.due);
   newCards.sort((a,b)=>(a.card.created||0)-(b.card.created||0));
   const order=state.settings.order||'seq';
@@ -900,7 +999,7 @@ function buildQueue(){
   else if(order==='group') newCards=orderByGroups(newCards);
   const learnedToday=state.log.filter(l=>l.day===todayKey()&&l.wasNew).length;
   const quota=Math.max(0,Math.min(state.settings.newPerDay,100)-learnedToday);
-  return due.concat(newCards.slice(0,quota));
+  return due.concat(todayCards,newCards.slice(0,quota));
 }
 function dueCount(){
   const now=Date.now();let n=0;
@@ -1064,6 +1163,25 @@ function rateBtn(k,label,iv){
   return '<button class="rate-btn rate-'+k+'"><span class="k">'+label+'</span><span class="iv num">'+iv+'</span></button>';
 }
 function intervalLabel(c,rating){
+  const fsrs=getScheduler().key==='fsrs';
+  if(c.state==='new'||c.state==='learning'){
+    if(c._relearn){ /* 复习卡重学中 */
+      if(rating===RATING.AGAIN)return ((c.againStreak||0)+1>=2)?'明天':'本轮再现';
+      if(fsrs){
+        try{return fmtInterval(Schedulers.fsrs.relearnGraduate(c,rating).due-Date.now());}catch(e){return '';}
+      }
+      const ni=Math.max(1,Math.round((c._relearnInt||1)*0.5));
+      return fmtInterval(ni*DAY);
+    }
+    if(rating===RATING.AGAIN)return ((c.againStreak||0)+1>=MAX_AGAIN)?'明天':'本轮再现';
+    if(fsrs){
+      try{return fmtInterval(Schedulers.fsrs.graduate(c,rating).due-Date.now());}catch(e){return '';}
+    }
+    if(rating===RATING.EASY)return '4 天';
+    const steps=(c.steps||0)+1;
+    return steps>=LS_STEPS?'1 天':'再学一次';
+  }
+  if(rating===RATING.AGAIN)return ((c.againStreak||0)>=1)?'明天':'本轮再现';
   const s=getScheduler();
   try{return fmtInterval(s.nextIntervals(c,rating));}catch(e){return '';}
 }
@@ -1148,13 +1266,76 @@ function flipCard(){
     }));
   },reduceMotion?1:420);
 }
+/* 毕业（进入 review）：FSRS 按评分初始化记忆状态；SM-2 固定 1d/4d */
+function gradNow(c,r){
+  const s=getScheduler();
+  if(s.graduate){Object.assign(c,s.graduate(c,r));return;}
+  if(r===RATING.EASY){Object.assign(c,{state:'review',due:Date.now()+4*DAY,interval:4,reps:(c.reps||0)+1});}
+  else{Object.assign(c,{state:'review',due:Date.now()+1*DAY,interval:1,reps:(c.reps||0)+1});}
+}
 function rate(r){
   const item=session.queue[session.pos];if(!item)return;
   const c=item.card;
-  const s=getScheduler();
-  const updated=s.schedule(c,r);
   const wasNew=c.state==='new';
-  Object.assign(c,updated);
+  const relearn=!!c._relearn;
+  const sched=getScheduler();
+  if(relearn){
+    /* 复习卡答错进入重学：本轮重现一次；再错则今天结束 */
+    if(r===RATING.AGAIN){
+      c.againStreak=(c.againStreak||0)+1;
+      if(c.againStreak>=2){
+        if(sched.key==='fsrs'){Object.assign(c,sched.relearnGraduate(c,r));}
+        else{
+          const ni=Math.max(1,Math.round((c._relearnInt||1)*0.5));
+          Object.assign(c,{state:'review',due:Date.now()+ni*DAY,interval:ni,ease:Math.max(1.3,(c.ease||2.5)-0.2),lapses:(c.lapses||0)+1});
+        }
+        delete c._relearn;delete c._relearnInt;delete c.lapseIvl;
+      }else requeue(item);
+    }else{
+      if(sched.key==='fsrs'){Object.assign(c,sched.relearnGraduate(c,r));}
+      else{
+        const ni=Math.max(1,Math.round((c._relearnInt||1)*0.5));
+        Object.assign(c,{state:'review',due:Date.now()+ni*DAY,interval:ni,ease:Math.max(1.3,(c.ease||2.5)-0.2),lapses:(c.lapses||0)+1,reps:(c.reps||0)+1});
+      }
+      delete c._relearn;delete c._relearnInt;delete c.lapseIvl;
+    }
+  }else if(c.state==='new'||c.state==='learning'){
+    /* 学习步进：答 Again 重置步进+本轮重现（连续 3 次后毕业失败明天）；Good/Hard 推进；完成 2 步毕业 */
+    if(r===RATING.AGAIN){
+      c.steps=0;c.againStreak=(c.againStreak||0)+1;c.state='learning';
+      if(c.againStreak>=MAX_AGAIN)gradNow(c,RATING.AGAIN);
+      else requeue(item);
+    }else if(r===RATING.EASY){
+      gradNow(c,RATING.EASY);
+    }else{ /* HARD / GOOD */
+      c.steps=(c.steps||0)+1;c.state='learning';
+      if(c.steps>=LS_STEPS)gradNow(c,r);
+      else requeue(item);
+    }
+  }else{
+    /* 复习卡：答错进入重学（本轮重现）；其余按调度器 SM-2/FSRS */
+    if(r===RATING.AGAIN){
+      c.againStreak=(c.againStreak||0)+1;
+      if(sched.key==='fsrs'){
+        const lp=sched.lapse(c);
+        Object.assign(c,lp);c._relearn=true;
+        if(c.againStreak>=2){
+          const ivl=lp.lapseIvl;
+          Object.assign(c,{state:'review',due:Date.now()+ivl*DAY,interval:ivl,lapses:(c.lapses||0)+1,reps:(c.reps||0)+1});
+          delete c._relearn;delete c.lapseIvl;
+        }else requeue(item);
+      }else{
+        c._relearn=true;c._relearnInt=c.interval||1;c.state='learning';
+        if(c.againStreak>=2){
+          const ni=Math.max(1,Math.round((c.interval||1)*0.5));
+          Object.assign(c,{state:'review',due:Date.now()+ni*DAY,interval:ni,ease:Math.max(1.3,(c.ease||2.5)-0.2),lapses:(c.lapses||0)+1});
+          delete c._relearn;delete c._relearnInt;
+        }else requeue(item);
+      }
+    }else{
+      Object.assign(c,sched.schedule(c,r));
+    }
+  }
   state.log.push({ts:Date.now(),day:todayKey(),cardId:c.id,rating:r,wasNew});
   session.answers++;
   session.pos++;
@@ -1166,7 +1347,7 @@ function renderStudyEmpty(){
   $('#studyPos').textContent='0 / 0';
   setRing($('#studyRingFg'),$('#studyRingPct'),0,1);
   $('#studyArea').innerHTML='<div class="glass card study-done"><h2>现在没有待学习的卡片</h2>'+
-    '<p>所有到期卡片已复习完毕。休息一下，或去牌组里看看。</p>'+
+    '<p>今天还没学习的话，先去牌组或日历开始；学过的单词会一直留在队列里，可以随时回来重复学习。</p>'+
     '<button class="btn btn-primary" data-route="decks" onclick="navigate(\'decks\')">返回牌组</button></div>';
 }
 function renderStudyDone(){
@@ -1478,7 +1659,7 @@ $('#exportCsvBtn').addEventListener('click',exportCsv);
 $('#exportJsonBtn').addEventListener('click',exportJson);
 $('#resetStatsBtn').addEventListener('click',()=>{
   if(!confirm('清空全部学习记录与调度状态？（卡片数据保留，全部回到新卡）'))return;
-  for(const d of state.decks)for(const c of d.cards){c.state='new';c.due=0;c.interval=0;c.reps=0;c.lapses=0;c.ease=2.5;}
+  for(const d of state.decks)for(const c of d.cards){c.state='new';c.due=0;c.interval=0;c.reps=0;c.lapses=0;c.ease=2.5;c.fsrs=null;delete c.steps;delete c.againStreak;}
   state.log=[];
   saveState();renderAll();toast('学习记录已清空');
 });
@@ -1513,7 +1694,7 @@ $('#newPerDay').addEventListener('change',e=>{
 });
 $$('#schedGroup button').forEach(b=>b.addEventListener('click',()=>{
   state.settings.scheduler=b.dataset.sched;
-  saveState();renderAll();toast('调度算法：'+(b.dataset.sched==='sm2'?'SM-2':'FSRS（实验，回落 SM-2）'));
+  saveState();renderAll();toast('调度算法：'+(b.dataset.sched==='sm2'?'SM-2':'FSRS-6（Anki 新版智能调度）'));
 }));
 $$('#voiceGroup button').forEach(b=>b.addEventListener('click',()=>{
   state.settings.voice=b.dataset.voice;
