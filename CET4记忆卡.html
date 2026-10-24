@@ -337,6 +337,7 @@ input.ctl-num{
   transition:transform var(--dur-fast) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 .cal-day .d{ line-height:1; }
+.cal-day .emoji{ font-size:17px; line-height:1; min-height:17px; }
 .cal-day .cnt{ font-size:10px; font-weight:600; opacity:.8; line-height:1; min-height:10px; }
 .cal-day.blank{ pointer-events:none; cursor:default; }
 .cal-day.future{ color:var(--muted); background:var(--raised); }
@@ -350,6 +351,11 @@ input.ctl-num{
   .cal-day.bad:hover{ background:#FADBD6; }
 }
 .cal-status{ font-size:13px; color:var(--muted); margin-top:16px; min-height:20px; }
+.cal-cheer{
+  margin-top:14px; padding:10px 16px; border-radius:12px;
+  background:var(--pill-warning-bg); color:var(--pill-warning-ink);
+  font-size:13px; font-weight:500; line-height:1.6;
+}
 .cal-legend{ display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; }
 .cal-legend span{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
 .cal-legend i{ width:14px; height:14px; border-radius:5px; display:inline-block; }
@@ -592,6 +598,7 @@ input.ctl-num{
         <div class="cal-grid" id="calGrid" role="grid" aria-label="日历"></div>
       </div>
       <p class="cal-status reveal" id="calStatus"></p>
+      <p class="cal-cheer reveal" id="calCheer"></p>
       <div class="cal-legend reveal">
         <span><i class="lg good"></i>已学习</span>
         <span><i class="lg bad"></i>未学习</span>
@@ -1438,25 +1445,64 @@ function renderCalendar(){
     const cnt=learned[key]||0;
     let cls='cal-day';
     if(isFuture)cls+=' future';
+    else if(isToday){
+      /* 今天：已学变绿，未学不加红；今天不放表情 */
+      if(cnt>0)cls+=' good';
+    }
     else if(cnt>0)cls+=' good';
     else cls+=' bad';
     if(isToday)cls+=' today';
+    /* 表情：已到日期里，已学用积极表情、未学用遗憾表情；相邻日期按序轮换不重复；今天不放 */
+    let emo='';
+    if(!isToday&&!isFuture){
+      const idx=((d-1)+m*3)%CAL_EMOJI_GOOD.length;
+      emo=cnt>0?CAL_EMOJI_GOOD[idx]:CAL_EMOJI_BAD[idx];
+    }
     html+='<div class="'+cls+'" data-key="'+key+'" data-date="'+d+'" role="gridcell">'+
       '<span class="d num">'+d+'</span>'+
+      (emo?'<span class="emoji" aria-hidden="true">'+emo+'</span>':'')+
       '<span class="cnt num">'+(cnt>0?cnt+' 张':'')+'</span></div>';
   }
   $('#calGrid').innerHTML=html;
-  /* 状态行 */
+  /* 状态行 + 随机鼓励语 */
   const cur=$('#calStatus');cur.textContent='';
+  const cheer=$('#calCheer');
   if(y===now.getFullYear()&&m===now.getMonth()){
     cur.innerHTML='本月已学 <b class="num">'+todayMonthLearned()+'</b> 天 · 今日'+(learned[todayK]?'已学 <b class="num">'+learned[todayK]+'</b> 张':'还未学习，点击今天的日期开始')+'。';
+    if(cheer)cheer.textContent=(learned[todayK]?CAL_CHEERS_DONE:CAL_CHEERS)[Math.floor(Math.random()*(learned[todayK]?CAL_CHEERS_DONE:CAL_CHEERS).length)];
   }else if(new Date(y,m,1)>endOfToday){
     cur.textContent='这个月还没开始。';
+    if(cheer)cheer.textContent=CAL_CHEERS[Math.floor(Math.random()*CAL_CHEERS.length)];
   }else{
     const monthLearned=Object.keys(learned).filter(k=>k.startsWith(y+'-'+String(m+1).padStart(2,'0'))).length;
     cur.innerHTML='该月已学 <b class="num">'+monthLearned+'</b> 天。';
+    if(cheer)cheer.textContent=CAL_CHEERS[Math.floor(Math.random()*CAL_CHEERS.length)];
   }
 }
+const CAL_EMOJI_GOOD=['😄','😎','🥳','🤩','😆','💪','🌟','🔥','✨','🥰'];
+const CAL_EMOJI_BAD=['😔','😢','🥺','😩','😫','😴','😪','🫠','😅','🤦'];
+const CAL_CHEERS=[
+  '今天没学也没关系，从下一个单词开始就好。',
+  '慢慢来，一个词也是进步。',
+  '坚持的人，运气都不会太差。',
+  '别想太多，先背一个单词。',
+  '每一张卡片都在悄悄帮你加分。',
+  '此刻开始，就是最好的时间。',
+  '四级上岸，靠的就是每天一点点。',
+  '累了就歇歇，歇完再继续。',
+  '今天打卡了吗？没有就现在。',
+  '单词不会骗人，背了就进脑子。',
+  '自律的你会感谢现在背单词的自己。',
+  '少刷一条视频，多记一个单词。'
+];
+const CAL_CHEERS_DONE=[
+  '今天也坚持打卡了，很棒！',
+  '连续打卡的感觉是不是很爽？',
+  '努力有迹可循，绿格子就是证据。',
+  '今天已学，明天继续，稳了。',
+  '绿格子 +1，离目标又近一步。',
+  '今天的你，比昨天的你更厉害了。'
+];
 function todayMonthLearned(){
   const k=todayKey().slice(0,7);
   const set=new Set(state.log.filter(l=>String(l.day).startsWith(k)).map(l=>l.day));
