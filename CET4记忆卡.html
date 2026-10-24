@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CET4 记忆 · 仿 AnkiDroid 网页</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='6' width='22' height='24' rx='5' fill='%230F6E5B'/%3E%3Crect x='9' y='4' width='22' height='24' rx='5' fill='%23FFFFFF' opacity='.92'/%3E%3Cpath d='M13 12h14M13 17h11M13 22h8' stroke='%231B1A17' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://miaoda.feishu.cn">
+<link rel="preconnect" href="https://sf3-cn.feishucdn.com" crossorigin>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap">
+<style>
+/* ============ tokens ============ */
+:root{
+  --ground:#F4F2EC; --ink:#1B1A17; --muted:#5F5B52; --faint:#6E695E;
+  --border:#E4E0D4; --rule:#EFEBE1; --control:#C9C3B3;
+  --primary:#1B1A17; --on-primary:#F7F5EF;
+  --accent:#0F6E5B; --accent-deep:#0A5648; --accent-soft:#E4EFEA;
+  --positive:#247B50; --pill-positive-bg:#DCFAE5; --pill-positive-ink:#04250E;
+  --negative:#C4242A; --pill-negative-bg:#FFEDEA; --pill-negative-ink:#831C1E;
+  --pill-warning-bg:#FFFBEB; --pill-warning-ink:#92400E;
+  --glass-bg:rgba(255,255,255,.62); --glass-bg-strong:rgba(255,255,255,.82);
+  --glass-border:rgba(255,255,255,.72); --glass-shadow:0 18px 50px rgba(46,38,24,.10), 0 2px 8px rgba(46,38,24,.05);
+  --radius-card:20px; --radius-control:12px; --radius-chip:999px;
+  --gap:16px; --card-pad:22px; --pad:24px;
+  --font:"Space Grotesk","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --fs-title:28px; --fs-section:16px; --fs-kpi:26px; --fs-body:14px; --fs-small:12px;
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-inout:cubic-bezier(.77,0,.175,1);
+  --dur-fast:120ms; --dur:200ms; --dur-slow:320ms; --dur-flip:380ms;
+}
+@media (prefers-reduced-motion: reduce){
+  :root{ --dur-fast:1ms; --dur:1ms; --dur-slow:1ms; --dur-flip:1ms; }
+}
+/* ============ base ============ */
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  font-family:var(--font); background:var(--ground); color:var(--ink);
+  font-size:15px; line-height:1.55; min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.num{ font-variant-numeric:tabular-nums; }
+button{ font-family:inherit; font-size:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+input,select,textarea{ font-family:inherit; font-size:16px; color:var(--ink); }
+a{ color:var(--accent); text-decoration:none; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+h1,h2,h3{ font-weight:700; letter-spacing:-.02em; }
+::selection{ background:var(--accent); color:#fff; }
+
+/* ============ layout shell ============ */
+#app{ display:flex; min-height:100vh; }
+#nav{
+  width:232px; flex:0 0 232px; padding:20px 12px 24px;
+  display:flex; flex-direction:column; gap:4px; position:sticky; top:0; height:100vh;
+  background:rgba(244,242,236,.86);
+  border-right:1px solid var(--border);
+}
+.brand{ display:flex; align-items:center; gap:10px; padding:6px 10px 18px; }
+.brand-mark{ width:34px; height:34px; border-radius:10px; background:var(--accent); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.brand-mark svg{ display:block; }
+.brand-name{ font-size:17px; font-weight:700; letter-spacing:-.02em; }
+.brand-name small{ display:block; font-size:11px; font-weight:500; color:var(--muted); letter-spacing:.02em; }
+.nav-item{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:9px 12px; border-radius:10px; font-size:14px; font-weight:500; color:var(--muted);
+  transition:background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+.nav-item svg{ width:17px; height:17px; flex:0 0 auto; opacity:.85; }
+.nav-item.active{ background:var(--glass-bg-strong); color:var(--ink); font-weight:700; box-shadow:0 1px 3px rgba(46,38,24,.06); }
+.nav-count{ margin-left:auto; font-size:12px; font-weight:600; color:var(--accent-deep); background:var(--accent-soft); border-radius:var(--radius-chip); padding:1px 8px; }
+.nav-foot{ margin-top:auto; padding:12px 10px 0; font-size:12px; color:var(--faint); line-height:1.5; }
+.nav-foot b{ color:var(--accent-deep); font-weight:700; }
+
+#main{ flex:1; min-width:0; padding:36px clamp(20px,4vw,48px) 80px; max-width:1120px; }
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* ============ glass card ============ */
+.glass{
+  background:var(--glass-bg); border:1px solid var(--glass-border);
+  border-radius:var(--radius-card); box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:blur(18px) saturate(1.15); backdrop-filter:blur(18px) saturate(1.15);
+}
+.card{ padding:var(--card-pad); }
+
+/* ============ title row ============ */
+.title-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+h1{ font-size:var(--fs-title); line-height:1.15; }
+.subtitle{ margin-top:4px; font-size:14px; color:var(--muted); }
+.subtitle .accent{ color:var(--accent-deep); font-weight:600; }
+
+/* ============ buttons ============ */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:40px; padding:0 18px; border-radius:var(--radius-control);
+  font-size:14px; font-weight:600; transition:transform var(--dur-fast) var(--ease-out), background var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+.btn:active{ transform:scale(.97); }
+@media (hover:hover) and (pointer:fine){
+  .btn:hover{ transform:translateY(-1px); }
+}
+.btn-primary{ background:var(--primary); color:var(--on-primary); }
+.btn-primary:hover{ background:#000; }
+.btn-accent{ background:var(--accent); color:#fff; }
+.btn-accent:hover{ background:var(--accent-deep); }
+.btn-ghost{ background:rgba(255,255,255,.5); border:1px solid var(--control); color:var(--ink); }
+.btn-ghost:hover{ border-color:var(--faint); }
+.btn-text{ height:auto; padding:6px 8px; color:var(--accent-deep); font-weight:600; }
+.btn-text.danger{ color:var(--negative); }
+.btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+.btn[data-big]{ height:48px; padding:0 26px; font-size:15px; }
+
+/* ============ kpi strip ============ */
+.kpi-strip{
+  display:grid; grid-template-columns:repeat(4,1fr);
+  border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden;
+  background:var(--glass-bg); -webkit-backdrop-filter:blur(18px) saturate(1.15); backdrop-filter:blur(18px) saturate(1.15);
+  box-shadow:var(--glass-shadow);
+}
+.kpi-cell{ padding:16px 20px; }
+.kpi-cell + .kpi-cell{ border-left:1px solid var(--rule); }
+.kpi-label{ font-size:12px; color:var(--muted); margin-bottom:2px; }
+.kpi-value{ font-size:var(--fs-kpi); font-weight:700; letter-spacing:-.02em; }
+.kpi-value small{ font-size:14px; color:var(--muted); font-weight:500; }
+.kpi-sub{ font-size:12px; color:var(--faint); margin-top:2px; }
+.kpi-sub .up{ color:var(--positive); font-weight:600; }
+
+/* ============ deck list ============ */
+.deck-head{ display:flex; align-items:baseline; justify-content:space-between; margin:28px 4px 12px; }
+.deck-head h2{ font-size:var(--fs-section); }
+.deck-head span{ font-size:12px; color:var(--faint); }
+.deck-row{
+  display:flex; align-items:center; gap:16px; padding:14px 18px; margin-bottom:10px;
+  cursor:pointer; text-align:left; width:100%;
+  transition:transform var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .deck-row:hover{ transform:translateY(-1px); background:var(--glass-bg-strong); }
+}
+.deck-icon{
+  width:40px; height:40px; border-radius:12px; background:var(--accent-soft); color:var(--accent-deep);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto; font-weight:700; font-size:15px;
+}
+.deck-info{ flex:1; min-width:0; }
+.deck-name{ font-size:15px; font-weight:700; }
+.deck-meta{ font-size:12px; color:var(--faint); margin-top:1px; }
+.deck-due{ text-align:right; flex:0 0 auto; }
+.deck-due .n{ font-size:20px; font-weight:700; letter-spacing:-.02em; }
+.deck-due .lbl{ font-size:11px; color:var(--faint); }
+
+/* ============ today task block ============ */
+.today-card{ display:flex; align-items:center; gap:28px; padding:26px; }
+.today-main{ flex:1; min-width:0; }
+.today-main h2{ font-size:19px; margin-bottom:6px; }
+.today-main p{ font-size:13px; color:var(--muted); }
+.today-counts{ display:flex; gap:26px; margin-top:14px; }
+.today-counts .tc{ text-align:left; }
+.today-counts .tc b{ font-size:22px; font-weight:700; letter-spacing:-.02em; }
+.today-counts .tc span{ display:block; font-size:11px; color:var(--faint); }
+.today-ring{ flex:0 0 118px; width:118px; height:118px; position:relative; }
+.today-ring svg{ transform:rotate(-90deg); display:block; }
+.today-ring .ring-center{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.today-ring .ring-center b{ font-size:22px; font-weight:700; }
+.today-ring .ring-center span{ font-size:11px; color:var(--faint); }
+
+/* ============ empty state ============ */
+.empty{
+  border:1px dashed var(--control); border-radius:var(--radius-card);
+  padding:48px 28px; text-align:center; background:rgba(255,255,255,.3);
+}
+.empty h3{ font-size:18px; margin-bottom:6px; }
+.empty p{ font-size:13px; color:var(--muted); max-width:420px; margin:0 auto 18px; }
+.empty .actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+/* ============ study ============ */
+.study-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap; }
+.study-top .left{ display:flex; align-items:center; gap:12px; min-width:0; }
+.study-top .deck-name{ font-size:14px; font-weight:600; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.study-progress{ display:flex; align-items:center; gap:10px; }
+.study-progress .ring{ width:46px; height:46px; position:relative; flex:0 0 auto; }
+.study-progress .ring svg{ transform:rotate(-90deg); display:block; }
+.study-progress .ring .rc{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.study-progress .lbl{ font-size:12px; color:var(--faint); }
+
+.card3d{ perspective:1400px; }
+.card-inner{
+  position:relative; width:100%; min-height:340px; transform-style:preserve-3d;
+  transition:transform var(--dur-flip) var(--ease-out);
+}
+.card3d.flipped .card-inner{ transform:rotateY(180deg); }
+.card3d.settle .card-inner{ transition:transform 160ms var(--ease-out); }
+.card-face{
+  position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  border-radius:22px; padding:30px; overflow:hidden;
+  background:var(--glass-bg-strong); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(1.2); backdrop-filter:blur(20px) saturate(1.2);
+  display:flex; flex-direction:column;
+}
+.card-face.back{ transform:rotateY(180deg); }
+.card-front-word{ font-size:52px; font-weight:700; letter-spacing:-.02em; line-height:1.1; }
+.card-front-word small{ font-size:20px; color:var(--muted); font-weight:500; margin-left:10px; letter-spacing:0; }
+.card-phon{ font-size:15px; color:var(--muted); margin-top:8px; }
+.speaker{
+  width:30px; height:30px; border-radius:50%; margin-left:10px; vertical-align:middle;
+  color:var(--accent-deep); background:var(--accent-soft);
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+  transition:transform var(--dur-fast) var(--ease-out), background var(--dur) var(--ease-out);
+}
+.speaker svg{ width:15px; height:15px; display:block; }
+.speaker:active{ transform:scale(.9); }
+@media (hover:hover) and (pointer:fine){
+  .speaker:hover{ background:var(--accent); color:#fff; }
+}
+.back-head{ display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.back-head .speaker{ margin-left:0; }
+.card-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:14px; }
+.tag{ font-size:11px; font-weight:600; color:var(--accent-deep); background:var(--accent-soft); border-radius:var(--radius-chip); padding:2px 9px; }
+.card-hint{ margin-top:auto; padding-top:20px; font-size:12px; color:var(--faint); display:flex; align-items:center; gap:6px; }
+.back-scroll{ overflow:auto; min-height:0; }
+.back-meaning{ font-size:19px; font-weight:600; line-height:1.5; }
+.back-meaning .pos{ color:var(--accent-deep); font-weight:700; font-size:14px; margin-right:6px; }
+.back-block{ margin-top:14px; }
+.back-block h4{ font-size:11px; font-weight:700; color:var(--faint); text-transform:none; letter-spacing:.04em; margin-bottom:4px; }
+.back-block p{ font-size:14px; color:var(--ink); line-height:1.6; }
+.back-block .cn{ color:var(--muted); }
+.back-block .src{ font-size:11px; color:var(--faint); }
+.back-rem{ margin-top:14px; padding:10px 12px; background:var(--pill-warning-bg); border-radius:10px; font-size:13px; color:var(--pill-warning-ink); }
+.back-rem h4{ font-size:11px; font-weight:700; margin-bottom:2px; }
+
+.rate-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:18px; }
+.rate-btn{
+  height:auto; min-height:76px; padding:12px 8px; border-radius:var(--radius-control);
+  background:var(--glass-bg); border:1px solid var(--border); text-align:center;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  transition:transform var(--dur-fast) var(--ease-out), background var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.rate-btn .k{ font-size:14px; font-weight:700; }
+.rate-btn .iv{ font-size:11px; color:var(--faint); }
+.rate-btn:active{ transform:scale(.96); }
+@media (hover:hover) and (pointer:fine){
+  .rate-btn:hover{ transform:translateY(-2px); background:var(--glass-bg-strong); border-color:var(--control); box-shadow:0 8px 20px rgba(46,38,24,.08); }
+  .rate-again:hover{ border-color:var(--negative); } .rate-hard:hover{ border-color:#B45309; }
+  .rate-good:hover{ border-color:var(--accent); } .rate-easy:hover{ border-color:var(--positive); }
+}
+.rate-again .k{ color:var(--negative); } .rate-hard .k{ color:#92400E; }
+.rate-good .k{ color:var(--accent-deep); } .rate-easy .k{ color:var(--positive); }
+
+.study-done{ text-align:center; padding:40px 24px; }
+.study-done h2{ font-size:24px; margin-bottom:8px; }
+.study-done p{ font-size:14px; color:var(--muted); margin-bottom:22px; }
+.study-done .next-line{ font-size:13px; color:var(--faint); margin-top:14px; }
+
+/* ============ stats ============ */
+.stats-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.stats-card h3{ font-size:var(--fs-section); margin-bottom:12px; }
+.ring-lg{ display:flex; align-items:center; gap:22px; }
+.ring-lg .wrap{ position:relative; width:132px; height:132px; flex:0 0 auto; }
+.ring-lg svg{ transform:rotate(-90deg); display:block; }
+.ring-lg .center{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.ring-lg .center b{ font-size:24px; font-weight:700; }
+.ring-lg .center span{ font-size:11px; color:var(--faint); }
+.legend{ display:flex; flex-direction:column; gap:8px; flex:1; min-width:0; }
+.legend-row{ display:flex; align-items:center; gap:8px; font-size:13px; }
+.legend-row .dot{ width:9px; height:9px; border-radius:3px; flex:0 0 auto; }
+.legend-row .name{ color:var(--muted); }
+.legend-row .val{ margin-left:auto; font-weight:700; }
+.legend-row .pct{ font-size:11px; color:var(--faint); width:42px; text-align:right; }
+.bars-chart{ width:100%; height:150px; }
+.chart-note{ font-size:11px; color:var(--faint); margin-top:8px; }
+
+/* ============ editor ============ */
+.editor-bar{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+.editor-bar select{
+  height:38px; padding:0 12px; border-radius:var(--radius-control); border:1px solid var(--control);
+  background:var(--glass-bg-strong); max-width:200px;
+}
+.search-wrap{ flex:1; min-width:180px; position:relative; }
+.search-wrap input{
+  width:100%; height:38px; padding:0 14px; border-radius:var(--radius-control);
+  border:1px solid var(--control); background:var(--glass-bg-strong);
+}
+.card-list{ margin-top:4px; }
+.card-item{
+  display:flex; align-items:center; gap:14px; padding:13px 18px; margin-bottom:8px;
+  transition:transform var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .card-item:hover{ transform:translateX(2px); background:var(--glass-bg-strong); }
+}
+.card-item .front{ flex:1; min-width:0; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card-item .front small{ font-weight:500; color:var(--faint); margin-left:8px; }
+.card-item .meta{ font-size:11px; color:var(--faint); white-space:nowrap; }
+.card-item .ops{ display:flex; gap:2px; }
+.icon-btn{ width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); transition:background var(--dur) var(--ease-out), color var(--dur) var(--ease-out); }
+@media (hover:hover) and (pointer:fine){
+  .nav-item:hover{ background:rgba(255,255,255,.5); color:var(--ink); }
+  .icon-btn:hover{ background:rgba(0,0,0,.05); color:var(--ink); }
+  .icon-btn.danger:hover{ color:var(--negative); }
+}
+.icon-btn svg{ width:16px; height:16px; }
+
+/* ============ settings ============ */
+.set-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; }
+.set-row + .set-row{ border-top:1px solid var(--rule); }
+.set-info h4{ font-size:14px; font-weight:600; }
+.set-info p{ font-size:12px; color:var(--muted); margin-top:2px; max-width:560px; }
+.set-ctl{ flex:0 0 auto; display:flex; gap:8px; align-items:center; }
+select.ctl{
+  height:38px; padding:0 12px; border-radius:var(--radius-control); border:1px solid var(--control);
+  background:var(--glass-bg-strong);
+}
+input.ctl-num{
+  width:76px; height:38px; padding:0 10px; border-radius:var(--radius-control);
+  border:1px solid var(--control); background:var(--glass-bg-strong); text-align:right;
+}
+.radio-group{ display:flex; gap:6px; }
+.radio-group button{
+  height:38px; padding:0 14px; border-radius:var(--radius-control); font-size:13px; font-weight:600;
+  border:1px solid var(--control); background:rgba(255,255,255,.4); color:var(--muted);
+  transition:background var(--dur) var(--ease-out), color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
+}
+.radio-group button.on{ background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
+.usage-bar{ margin-top:10px; height:8px; border-radius:var(--radius-chip); background:var(--rule); overflow:hidden; }
+.usage-bar i{ display:block; height:100%; background:var(--accent); border-radius:var(--radius-chip); }
+
+/* ============ calendar ============ */
+.cal-card{ padding:22px; }
+.cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.cal-head .btn-text{ font-size:15px; padding:4px 10px; border-radius:10px; color:var(--muted); }
+.cal-title{ font-size:17px; font-weight:700; }
+.cal-week{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:8px; }
+.cal-week span{ text-align:center; font-size:11px; color:var(--faint); font-weight:600; }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+.cal-day{
+  min-height:54px; border-radius:12px; border:1px solid transparent;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  font-size:15px; font-weight:600; position:relative; cursor:pointer;
+  transition:transform var(--dur-fast) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.cal-day .d{ line-height:1; }
+.cal-day .cnt{ font-size:10px; font-weight:600; opacity:.8; line-height:1; min-height:10px; }
+.cal-day.blank{ pointer-events:none; cursor:default; }
+.cal-day.future{ color:var(--muted); background:var(--raised); }
+.cal-day.good{ background:var(--pill-positive-bg); color:var(--pill-positive-ink); }
+.cal-day.bad{ background:var(--pill-negative-bg); color:var(--pill-negative-ink); }
+.cal-day.today{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.cal-day:active{ transform:scale(.94); }
+@media (hover:hover) and (pointer:fine){
+  .cal-day.future:hover{ background:var(--active); }
+  .cal-day.good:hover{ background:#C9EFD4; }
+  .cal-day.bad:hover{ background:#FADBD6; }
+}
+.cal-status{ font-size:13px; color:var(--muted); margin-top:16px; min-height:20px; }
+.cal-legend{ display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; }
+.cal-legend span{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.cal-legend i{ width:14px; height:14px; border-radius:5px; display:inline-block; }
+.cal-legend i.good{ background:var(--pill-positive-bg); border:1px solid #BFE6CC; }
+.cal-legend i.bad{ background:var(--pill-negative-bg); border:1px solid #F5C8C2; }
+.cal-legend i.future{ background:var(--raised); border:1px solid var(--border); }
+.cal-legend i.today{ background:transparent; border:1.5px solid var(--accent); }
+
+/* ============ modal ============ */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(27,26,23,.32); z-index:50;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  opacity:0; pointer-events:none; transition:opacity var(--dur) var(--ease-out);
+  -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+}
+.modal-backdrop.open{ opacity:1; pointer-events:auto; }
+.modal{
+  width:100%; max-width:520px; max-height:88vh; overflow:auto;
+  border-radius:var(--radius-card); padding:26px;
+  background:var(--glass-bg-strong); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow);
+  transform:translateY(14px) scale(.98); transition:transform var(--dur) var(--ease-out);
+}
+.modal-backdrop.open .modal{ transform:translateY(0) scale(1); }
+.modal h3{ font-size:18px; margin-bottom:16px; }
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+.field input,.field select,.field textarea{
+  width:100%; border-radius:10px; border:1px solid var(--control); background:#fff;
+  padding:10px 12px;
+}
+.field textarea{ min-height:96px; resize:vertical; line-height:1.5; }
+.field textarea.tall{ min-height:140px; }
+.field .hint{ font-size:11px; color:var(--faint); margin-top:4px; }
+.modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+.field-row{ display:flex; gap:12px; }
+.field-row .field{ flex:1; }
+.switch{ position:relative; width:42px; height:24px; border-radius:var(--radius-chip); background:var(--control); transition:background var(--dur) var(--ease-out); flex:0 0 auto; }
+.switch::after{ content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform var(--dur) var(--ease-out); box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.switch.on{ background:var(--accent); }
+.switch.on::after{ transform:translateX(18px); }
+
+/* ============ toast ============ */
+#toast{
+  position:fixed; left:50%; bottom:28px; transform:translate(-50%,16px);
+  background:var(--ink); color:#F7F5EF; font-size:13px; font-weight:500;
+  padding:10px 18px; border-radius:var(--radius-chip); z-index:80;
+  opacity:0; pointer-events:none; transition:opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+#toast.show{ opacity:1; transform:translate(-50%,0); }
+
+/* ============ entrance reveal ============ */
+.view.active .reveal{ opacity:0; transform:translateY(18px); transition:opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out); }
+.view.active .reveal.in{ opacity:1; transform:translateY(0); }
+
+/* ============ responsive: phone ============ */
+@media (max-width:767px){
+  #app{ flex-direction:column; }
+  #nav{
+    position:fixed; left:0; right:0; bottom:0; top:auto; width:100%; height:auto;
+    flex-direction:row; justify-content:space-around; padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    background:rgba(244,242,236,.92); border-right:0; border-top:1px solid var(--border); z-index:40;
+  }
+  .brand{ display:none; }
+  .nav-foot{ display:none; }
+  .nav-item{ flex-direction:column; gap:2px; padding:6px 8px; font-size:10px; border-radius:10px; }
+  .nav-item svg{ width:20px; height:20px; }
+  .nav-count{ position:absolute; margin:0; font-size:9px; padding:0 5px; transform:translate(14px,-8px); }
+  .nav-item{ position:relative; }
+  #main{ padding:24px 16px 96px; }
+  .kpi-strip{ grid-template-columns:1fr 1fr; }
+  .kpi-cell:nth-child(3){ border-left:0; }
+  .kpi-cell:nth-child(n+3){ border-top:1px solid var(--rule); }
+  .today-card{ flex-direction:column; align-items:flex-start; gap:18px; }
+  .today-ring{ align-self:center; }
+  .rate-row{ grid-template-columns:repeat(2,1fr); }
+  .stats-grid{ grid-template-columns:1fr; }
+  .card-front-word{ font-size:40px; }
+  .card-inner{ min-height:300px; }
+}
+@media (min-width:768px){
+  #nav{ width:232px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <nav id="nav" aria-label="主导航">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="4" fill="#fff" opacity=".92"/><rect x="6" y="2.5" width="18" height="16" rx="4" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M9 10h9M9 14.5h6" stroke="#0F6E5B" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      <div class="brand-name">CET4 记忆<small>SM-2 · 四级词汇</small></div>
+    </div>
+    <button class="nav-item" data-route="decks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M9 4v5"/></svg>
+      牌组<span class="nav-count" id="navDue" hidden>0</span>
+    </button>
+    <button class="nav-item" data-route="study">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
+      学习
+    </button>
+    <button class="nav-item" data-route="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/><path d="M12 8v4l3 2"/></svg>
+      统计
+    </button>
+    <button class="nav-item" data-route="calendar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01"/></svg>
+      日历
+    </button>
+    <button class="nav-item" data-route="editor">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      编辑
+    </button>
+    <button class="nav-item" data-route="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      设置
+    </button>
+    <div class="nav-foot">数据保存在本机浏览器。<br>调度：<b id="navSched">SM-2</b></div>
+  </nav>
+
+  <main id="main">
+    <!-- ===== 视图：牌组 ===== -->
+    <section id="view-decks" class="view">
+      <div class="title-row reveal">
+        <div>
+          <h1>牌组</h1>
+          <p class="subtitle" id="decksSub">今天复习 <span class="accent num" id="subDue">0</span> 张 · 新卡 <span class="accent num" id="subNew">0</span></p>
+        </div>
+        <button class="btn btn-accent" data-route="study" id="startBtn">开始学习</button>
+      </div>
+      <div id="todayBlock" class="reveal"></div>
+      <div class="deck-head reveal">
+        <h2>我的牌组</h2>
+        <span id="deckTotal"></span>
+      </div>
+      <div id="deckList" class="reveal"></div>
+    </section>
+
+    <!-- ===== 视图：学习 ===== -->
+    <section id="view-study" class="view">
+      <div class="study-top reveal">
+        <div class="left">
+          <button class="btn-text" data-route="decks" onclick="navigate('decks')">← 返回</button>
+          <span class="deck-name" id="studyDeckName"></span>
+        </div>
+        <div class="study-progress">
+          <div class="ring">
+            <svg width="46" height="46" viewBox="0 0 46 46">
+              <circle cx="23" cy="23" r="19" fill="none" stroke="var(--rule)" stroke-width="5"/>
+              <circle id="studyRingFg" cx="23" cy="23" r="19" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="119.38" stroke-dashoffset="119.38"/>
+            </svg>
+            <div class="rc num" id="studyRingPct">0%</div>
+          </div>
+          <span class="lbl num" id="studyPos">0 / 0</span>
+        </div>
+      </div>
+      <div id="studyArea" class="reveal"></div>
+    </section>
+
+    <!-- ===== 视图：统计 ===== -->
+    <section id="view-stats" class="view">
+      <div class="title-row reveal">
+        <div>
+          <h1>统计</h1>
+          <p class="subtitle">四级词汇 · 学习轨迹</p>
+        </div>
+      </div>
+      <div id="kpiStrip" class="kpi-strip reveal"></div>
+      <div class="stats-grid">
+        <div class="glass card stats-card reveal">
+          <h3>卡片状态分布</h3>
+          <div class="ring-lg">
+            <div class="wrap">
+              <svg width="132" height="132" viewBox="0 0 132 132">
+                <circle cx="66" cy="66" r="52" fill="none" stroke="var(--rule)" stroke-width="9"/>
+                <g id="distRing"></g>
+              </svg>
+              <div class="center"><b class="num" id="distTotal">0</b><span>总卡数</span></div>
+            </div>
+            <div class="legend" id="distLegend"></div>
+          </div>
+        </div>
+        <div class="glass card stats-card reveal">
+          <h3>最近 14 天复习</h3>
+          <div id="barChart"></div>
+          <p class="chart-note" id="chartNote"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 视图：日历 ===== -->
+    <section id="view-calendar" class="view">
+      <div class="title-row reveal">
+        <div>
+          <h1>日历</h1>
+          <p class="subtitle">每天的学习打卡 · 已学变绿，未学变红，未到保持原样</p>
+        </div>
+      </div>
+      <div class="glass card reveal cal-card">
+        <div class="cal-head">
+          <button class="btn-text" id="calPrev" aria-label="上个月">←</button>
+          <span class="cal-title num" id="calTitle">—</span>
+          <button class="btn-text" id="calNext" aria-label="下个月">→</button>
+        </div>
+        <div class="cal-week" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div class="cal-grid" id="calGrid" role="grid" aria-label="日历"></div>
+      </div>
+      <p class="cal-status reveal" id="calStatus"></p>
+      <div class="cal-legend reveal">
+        <span><i class="lg good"></i>已学习</span>
+        <span><i class="lg bad"></i>未学习</span>
+        <span><i class="lg future"></i>未到日期</span>
+        <span><i class="lg today"></i>今天</span>
+      </div>
+    </section>
+
+    <!-- ===== 视图：编辑 ===== -->
+    <section id="view-editor" class="view">
+      <div class="title-row reveal">
+        <div>
+          <h1>编辑</h1>
+          <p class="subtitle" id="editorSub">浏览与维护你的卡片</p>
+        </div>
+        <button class="btn btn-accent" id="addCardBtn">新建卡片</button>
+      </div>
+      <div class="editor-bar reveal">
+        <select id="editorDeckSelect" aria-label="选择牌组"></select>
+        <div class="search-wrap">
+          <input type="text" id="editorSearch" placeholder="搜索单词…" aria-label="搜索">
+        </div>
+      </div>
+      <div id="cardList" class="card-list reveal"></div>
+    </section>
+
+    <!-- ===== 视图：设置 ===== -->
+    <section id="view-settings" class="view">
+      <div class="title-row reveal">
+        <div>
+          <h1>设置</h1>
+          <p class="subtitle">数据、调度与导入导出</p>
+        </div>
+      </div>
+      <div class="glass card reveal">
+        <div class="set-row">
+          <div class="set-info">
+            <h4>导入词库</h4>
+            <p>支持本工具的 bundle.json（单词+意思+音标+词性+例句翻译+短语+发音标识）、原始 CET4 JSONL、Anki 兼容 JSON / CSV（front,back,tags，可带 audio 列）。导入为牌组「四级词汇」并去重。</p>
+          </div>
+          <div class="set-ctl"><button class="btn btn-primary" id="importBtn">选择文件导入</button></div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>导出数据</h4>
+            <p>Anki 桌面端可直接导入导出的 CSV（front,back,tags）；JSON 为完整备份（含调度状态），可在此页重新导入。</p>
+          </div>
+          <div class="set-ctl">
+            <button class="btn btn-ghost" id="exportCsvBtn">导出 CSV</button>
+            <button class="btn btn-ghost" id="exportJsonBtn">导出 JSON</button>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>调度算法</h4>
+            <p>SM-2 为 Anki 经典间隔重复算法；FSRS 为实验性接口预留（当前回落 SM-2 实现）。算法以接口隔离，可随时替换。</p>
+          </div>
+          <div class="set-ctl">
+            <div class="radio-group" id="schedGroup">
+              <button data-sched="sm2" class="on">SM-2</button>
+              <button data-sched="fsrs">FSRS</button>
+            </div>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>发音音色</h4>
+            <p>播放单词发音使用英音还是美音（在线发音，需联网；带音频的词条优先使用词库自带发音）。</p>
+          </div>
+          <div class="set-ctl">
+            <div class="radio-group" id="voiceGroup">
+              <button data-voice="uk">英音</button>
+              <button data-voice="us">美音</button>
+            </div>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>出卡顺序</h4>
+            <p>新词的出现顺序：顺序（按词库顺序）、随机（打乱）、组合（相关词连续出现：近义词、反义词、同根/形近词）。</p>
+          </div>
+          <div class="set-ctl">
+            <div class="radio-group" id="orderGroup">
+              <button data-order="seq" class="on">顺序</button>
+              <button data-order="random">随机</button>
+              <button data-order="group">组合</button>
+            </div>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>每日新卡上限</h4>
+            <p>每天最多引入的新卡数量，避免新卡挤占复习队列。</p>
+          </div>
+          <div class="set-ctl">
+            <input type="number" class="ctl-num num" id="newPerDay" min="1" max="200" aria-label="每日新卡上限">
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>清理基础词</h4>
+            <p>词库可能混入小学/初中基础词（a、apple、cat 等）。一键删除已导入卡片中的基础词，只保留四级核心词汇。</p>
+          </div>
+          <div class="set-ctl"><button class="btn btn-ghost" id="cleanBasicBtn">清理基础词</button></div>
+        </div>
+        <div class="set-row">
+          <div class="set-info">
+            <h4>本地存储占用</h4>
+            <p id="storageInfo">…</p>
+          </div>
+          <div class="set-ctl"><button class="btn btn-text" id="resetStatsBtn">清空学习记录</button><button class="btn btn-text danger" id="resetAllBtn">清空全部数据</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 新建/编辑卡片 modal -->
+<div class="modal-backdrop" id="cardModal" role="dialog" aria-modal="true" aria-labelledby="cardModalTitle">
+  <div class="modal">
+    <h3 id="cardModalTitle">新建卡片</h3>
+    <div class="field">
+      <label for="fFront">正面（单词）</label>
+      <input id="fFront" autocomplete="off" placeholder="例如 abandon">
+    </div>
+    <div class="field">
+      <label for="fBack">背面（释义 / 内容）</label>
+      <textarea id="fBack" class="tall" placeholder="例如：v. 抛弃，放弃&#10;例句：How could she abandon her own child?"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="fDeck">所属牌组</label>
+        <select id="fDeck"></select>
+      </div>
+      <div class="field">
+        <label>反转卡</label>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+          <button class="switch" id="fReverse" role="switch" aria-checked="false" aria-label="反转卡"></button>
+          <span style="font-size:12px;color:var(--muted);">自动生成「背面→正面」卡</span>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fTags">标签（逗号分隔）</label>
+      <input id="fTags" placeholder="CET4, 高频">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">取消</button>
+      <button class="btn btn-primary" id="modalSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json,.csv,.txt" multiple hidden>
+<div id="toast" role="status"></div>
+
+<script>
+/* ============ APP JS CORE ============ */
+'use strict';
+/* ---------- 常量与工具 ---------- */
+const LS_KEY='cet4_memory_v1';
+const MIN=60*1000, HOUR=60*MIN, DAY=24*HOUR;
+const RATING={AGAIN:0,HARD:1,GOOD:2,EASY:3};
+const RATING_KEY=['重来','困难','良好','简单'];
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+/* 基础词表：小学/初中基础词，不属于四级核心生词（与 bundle 构建脚本一致） */
+const BASE_WORDS=new Set(("a an the i me my mine you your yours he him his she her hers it its we us our ours they them their theirs "+
+"be am is are was were been being do does did done doing have has had having can could may might must shall should will would "+
+"not no yes and or but so if because when while after before until though although since nor yet as than then "+
+"of to for in on at by with from up down out off over under above below about around behind between into onto upon within without "+
+"this that these those there here where what when who whom whose why how "+
+"one two three four five six seven eight nine ten zero first second third all some any each every both neither either few many much more most "+
+"other another such own same only just very too also again almost already even ever never still "+
+"apple banana orange pear book pen pencil bag desk chair table door window room house home school class teacher student "+
+"boy girl man woman people father mother brother sister family friend name year day today tomorrow yesterday morning afternoon evening night week month "+
+"red blue green yellow black white big small tall short long new old good bad hot cold fast slow happy sad "+
+"eat drink run walk go come see look hear speak say talk read write listen play sing dance jump sit stand sleep "+
+"cat dog bird fish water milk tea rice bread egg meat sun moon star tree flower grass sky cloud rain snow wind "+
+"hand foot head eye ear nose mouth face leg arm body hair coat hat shoe shirt dress").split(' '));
+const todayKey=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+function keyOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+const fmtNum=n=>Math.round(n).toLocaleString('zh-CN');
+function fmtInterval(ms){
+  if(ms<HOUR) return Math.max(1,Math.round(ms/MIN))+' 分钟';
+  if(ms<DAY) return Math.round(ms/HOUR)+' 小时';
+  if(ms<30*DAY) return Math.round(ms/DAY)+' 天';
+  if(ms<365*DAY) return Math.round(ms/(30*DAY))+' 个月';
+  return Math.round(ms/(365*DAY))+' 年';
+}
+function fmtDate(ts){
+  const d=new Date(ts);return d.getMonth()+1+'月'+d.getDate()+'日';
+}
+
+/* ---------- 状态 ---------- */
+let state=null;
+function defaultState(){
+  return {version:1,settings:{scheduler:'sm2',newPerDay:20,voice:'uk',order:'seq'},
+    decks:[{id:'d1',name:'四级词汇',cards:[]}],
+    log:[]};
+}
+function loadState(){
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){state=JSON.parse(raw);if(!state.decks)state.decks=[];if(!state.log)state.log=[];if(!state.settings)state.settings=defaultState().settings;if(!state.settings.voice)state.settings.voice='uk';if(!state.settings.order)state.settings.order='seq';return;}}
+  catch(e){console.warn('state load fail',e);}
+  state=defaultState();
+}
+function saveState(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(state));}
+  catch(e){toast('保存失败：存储空间不足');}
+}
+function cardCount(){return state.decks.reduce((n,d)=>n+d.cards.length,0);}
+
+/* ---------- 调度器（可换接口） ---------- */
+const Schedulers={
+  sm2:{
+    key:'sm2',name:'SM-2',
+    /* rating: 0重来 1困难 2良好 3简单 */
+    schedule(card,rating){
+      const ease0=card.ease||2.5;
+      if(card.state==='new'){
+        if(rating===RATING.AGAIN){return {...card,state:'learning',due:Date.now()+10*MIN,interval:0,reps:0,ease:ease0};}
+        if(rating===RATING.HARD){return {...card,state:'review',due:Date.now()+1*DAY,interval:1,reps:1,ease:ease0};}
+        if(rating===RATING.GOOD){return {...card,state:'review',due:Date.now()+2*DAY,interval:2,reps:1,ease:ease0};}
+        return {...card,state:'review',due:Date.now()+4*DAY,interval:4,reps:1,ease:ease0};
+      }
+      if(card.state==='learning'){
+        if(rating===RATING.AGAIN){return {...card,due:Date.now()+10*MIN,interval:0};}
+        if(rating===RATING.HARD){return {...card,state:'review',due:Date.now()+1*DAY,interval:1,reps:(card.reps||0)+1,ease:ease0};}
+        if(rating===RATING.GOOD){return {...card,state:'review',due:Date.now()+2*DAY,interval:2,reps:(card.reps||0)+1,ease:ease0};}
+        return {...card,state:'review',due:Date.now()+4*DAY,interval:4,reps:(card.reps||0)+1,ease:ease0};
+      }
+      /* review */
+      const interval=card.interval||1;
+      if(rating===RATING.AGAIN){
+        const ease=Math.max(1.3,(ease0||2.5)-0.2);
+        return {...card,ease,due:Date.now()+1*DAY,interval:1,reps:(card.reps||0),lapses:(card.lapses||0)+1};
+      }
+      if(rating===RATING.HARD){
+        const ni=Math.max(Math.round(interval*1.2),interval+1);
+        return {...card,due:Date.now()+ni*DAY,interval:ni,reps:(card.reps||0)+1};
+      }
+      if(rating===RATING.GOOD){
+        const ease=Math.min(3.5,(ease0||2.5)+0.05);
+        const ni=Math.max(2,Math.round(interval*ease));
+        return {...card,ease,due:Date.now()+ni*DAY,interval:ni,reps:(card.reps||0)+1};
+      }
+      const ease=Math.min(3.5,(ease0||2.5)+0.15);
+      const ni=Math.max(4,Math.round(interval*ease*1.3));
+      return {...card,ease,due:Date.now()+ni*DAY,interval:ni,reps:(card.reps||0)+1};
+    },
+    nextIntervals(card,rating){
+      return Schedulers.sm2.schedule(card,rating).due-Date.now();
+    }
+  },
+  fsrs:{
+    key:'fsrs',name:'FSRS',
+    schedule(card,rating){
+      /* 实验接口：当前回落 SM-2 实现，算法替换不影响上层 */
+      return Schedulers.sm2.schedule(card,rating);
+    },
+    nextIntervals(card,rating){return Schedulers.sm2.nextIntervals(card,rating);}
+  }
+};
+function getScheduler(){return Schedulers[state.settings.scheduler]||Schedulers.sm2;}
+
+/* ---------- 队列 ---------- */
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    const t=arr[i];arr[i]=arr[j];arr[j]=t;
+  }
+  return arr;
+}
+/* 组合模式：把互相关的词聚成组，组内相邻、组间随机，实现相关词连续出现。
+   相关 = 近义词(sy) / 反义词(an) 精确匹配 + 同根形近（共享≥3前缀且长度差≤4）。
+   性能：3 字符前缀桶 + 索引缓存，4371 词全量分组约百毫秒级。 */
+function orderByGroups(items){
+  if(items.length<2)return items;
+  const lower=items.map(x=>String(x.card.front||'').toLowerCase());
+  const idx=new Map(lower.map((w,i)=>[w,i]));
+  const buckets=new Map();
+  lower.forEach((w,i)=>{
+    const k=w.slice(0,3);
+    const b=buckets.get(k);
+    if(b)b.push(i);else buckets.set(k,[i]);
+  });
+  const relCache=new Map();
+  const relOf=i=>{
+    if(relCache.has(i))return relCache.get(i);
+    const w=lower[i], out=[];
+    const add=list=>{ if(list) for(const x of list){const k=String(x).toLowerCase();if(k!==w){const j=idx.get(k);if(j!==undefined&&out.indexOf(j)<0)out.push(j);}} };
+    add(items[i].card.sy);add(items[i].card.an);
+    const bucket=buckets.get(w.slice(0,3))||[];
+    for(const j of bucket){
+      if(j===i)continue;
+      const o=lower[j];
+      if(Math.abs(w.length-o.length)>4)continue;
+      let common=0;
+      while(common<w.length&&common<o.length&&w[common]===o[common])common++;
+      if(common>=3&&out.indexOf(j)<0)out.push(j);
+    }
+    relCache.set(i,out);
+    return out;
+  };
+  const visited=new Array(items.length).fill(false);
+  const groups=[];
+  for(let i=0;i<items.length;i++){
+    if(visited[i])continue;
+    const g=[i];visited[i]=true;
+    const stack=[i];
+    while(stack.length){
+      const cur=stack.pop();
+      for(const j of relOf(cur)){ if(!visited[j]){visited[j]=true;g.push(j);stack.push(j);} }
+    }
+    groups.push(g);
+  }
+  shuffle(groups);
+  const out=[];
+  for(const grp of groups){grp.sort((a,b)=>a-b);grp.forEach(i=>out.push(items[i]));}
+  return out;
+}
+function buildQueue(){
+  const now=Date.now();
+  let due=[], newCards=[];
+  for(const d of state.decks) for(const c of d.cards){
+    if(c.state==='learning'||c.state==='review'){ if(c.due<=now) due.push({deckId:d.id,card:c}); }
+    else if(c.state==='new'){ newCards.push({deckId:d.id,card:c}); }
+  }
+  due.sort((a,b)=>a.card.due-b.card.due);
+  newCards.sort((a,b)=>(a.card.created||0)-(b.card.created||0));
+  const order=state.settings.order||'seq';
+  if(order==='random') shuffle(newCards);
+  else if(order==='group') newCards=orderByGroups(newCards);
+  const learnedToday=state.log.filter(l=>l.day===todayKey()&&l.wasNew).length;
+  const quota=Math.max(0,Math.min(state.settings.newPerDay,100)-learnedToday);
+  return due.concat(newCards.slice(0,quota));
+}
+function dueCount(){
+  const now=Date.now();let n=0;
+  for(const d of state.decks) for(const c of d.cards){
+    if(c.state==='review'||c.state==='learning') if(c.due<=now) n++;
+  }
+  return n;
+}
+function newCount(){
+  let n=0;for(const d of state.decks) for(const c of d.cards) if(c.state==='new') n++;
+  return n;
+}
+
+/* ============ APP JS PART2 ============ */
+/* ---------- 路由与入场 ---------- */
+let currentRoute='decks';
+function navigate(route){
+  currentRoute=route;
+  $$('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-'+route).classList.add('active');
+  $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.route===route));
+  renderAll();
+  entrance($('#view-'+route));
+  window.scrollTo({top:0,behavior:reduceMotion?'auto':'smooth'});
+}
+function entrance(scope){
+  const els=scope.querySelectorAll('.reveal');
+  els.forEach((el,i)=>{
+    el.classList.remove('in');
+    requestAnimationFrame(()=>{setTimeout(()=>el.classList.add('in'),i*70);});
+  });
+}
+function toast(msg){
+  const t=$('#toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ---------- 渲染总入口 ---------- */
+function renderAll(){
+  const due=dueCount(), nn=newCount(), total=cardCount();
+  const subDue=$('#subDue'),subNew=$('#subNew');
+  if(subDue){subDue.textContent=due;subNew.textContent=nn;}
+  $('#navDue').hidden=due===0;$('#navDue').textContent=due;
+  $('#navSched').textContent=getScheduler().name;
+  if(currentRoute==='decks') renderDecks();
+  if(currentRoute==='study') renderStudy();
+  if(currentRoute==='stats') renderStats();
+  if(currentRoute==='calendar') renderCalendar();
+  if(currentRoute==='editor') renderEditor();
+  if(currentRoute==='settings') renderSettings();
+}
+
+/* ---------- 牌组视图 ---------- */
+function renderDecks(){
+  const due=dueCount(), nn=newCount(), total=cardCount();
+  const learnedToday=state.log.filter(l=>l.day===todayKey()).length;
+  $('#decksSub').innerHTML='今天复习 <span class="accent num">'+due+'</span> 张 · 新卡 <span class="accent num">'+nn+'</span> · 今日已学 <span class="accent num">'+learnedToday+'</span> 张';
+  const tb=$('#todayBlock');
+  if(total===0){
+    tb.innerHTML='<div class="glass card today-card" style="align-items:center;">'+
+      '<div class="today-main"><h2>还没有卡片</h2><p>先导入四级词库，或手动创建第一张卡片。</p>'+
+      '<div style="margin-top:14px;display:flex;gap:10px;">'+
+      '<button class="btn btn-accent" data-route="settings" onclick="navigate(\'settings\')">导入词库</button>'+
+      '<button class="btn btn-ghost" data-route="editor" onclick="openCardModal()">新建卡片</button></div></div>'+
+      '<div class="today-ring" style="flex:0 0 auto;width:86px;height:86px;"><svg width="86" height="86" viewBox="0 0 86 86"><circle cx="43" cy="43" r="37" fill="none" stroke="var(--rule)" stroke-width="7"/><circle cx="43" cy="43" r="37" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-dasharray="232.5" stroke-dashoffset="232.5"/></svg>'+
+      '<div class="ring-center"><b class="num">0</b><span>待复习</span></div></div></div>';
+    $('#startBtn').disabled=true;
+  }else{
+    const doneToday=Math.min(1,learnedToday/Math.max(1,due+nn));
+    const off=314.16*(1-doneToday);
+    tb.innerHTML='<div class="glass card today-card">'+
+      '<div class="today-main"><h2>今日任务</h2><p>优先复习到期卡片，再学新词。完成度实时更新。</p>'+
+      '<div class="today-counts">'+
+      '<div class="tc"><b class="num">'+due+'</b><span>到期复习</span></div>'+
+      '<div class="tc"><b class="num">'+nn+'</b><span>新卡</span></div>'+
+      '<div class="tc"><b class="num">'+learnedToday+'</b><span>今日已学</span></div>'+
+      '</div></div>'+
+      '<div class="today-ring"><svg width="118" height="118" viewBox="0 0 118 118"><circle cx="59" cy="59" r="50" fill="none" stroke="var(--rule)" stroke-width="8"/><circle id="todayRingFg" cx="59" cy="59" r="50" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>'+
+      '<div class="ring-center"><b class="num">'+Math.round(doneToday*100)+'%</b><span>今日完成</span></div></div></div>';
+    $('#startBtn').disabled=false;
+  }
+  const dl=$('#deckList');
+  if(state.decks.length===0){
+    dl.innerHTML='<div class="empty"><h3>还没有牌组</h3><p>创建一个牌组，或导入词库开始学习。</p><div class="actions"><button class="btn btn-accent" onclick="createDeck()">创建牌组</button><button class="btn btn-ghost" data-route="settings" onclick="navigate(\'settings\')">导入词库</button></div></div>';
+  }else{
+    $('#deckTotal').textContent=state.decks.length+' 个牌组 · '+total+' 张卡片';
+    dl.innerHTML=state.decks.map(d=>{
+      const dn=dueOfDeck(d), nn2=newOfDeck(d);
+      return '<button class="glass deck-row" onclick="studyDeck(\''+d.id+'\')">'+
+        '<span class="deck-icon">'+esc((d.name||'?').slice(0,1).toUpperCase())+'</span>'+
+        '<span class="deck-info"><span class="deck-name">'+esc(d.name)+'</span>'+
+        '<span class="deck-meta num">共 '+d.cards.length+' 张 · 新卡 '+nn2+'</span></span>'+
+        '<span class="deck-due"><span class="n num">'+dn+'</span><span class="lbl">待复习</span></span></button>';
+    }).join('');
+  }
+}
+function dueOfDeck(d){const now=Date.now();return d.cards.filter(c=>c.due<=now&&c.state!=='new').length;}
+function newOfDeck(d){return d.cards.filter(c=>c.state==='new').length;}
+function createDeck(){
+  const name=prompt('牌组名称：','新牌组');
+  if(!name||!name.trim())return;
+  state.decks.push({id:uid(),name:name.trim(),cards:[]});
+  saveState();renderAll();toast('已创建牌组');
+}
+function studyDeck(id){
+  if(!id){navigate('study');return;}
+  const q=buildQueue().filter(x=>x.deckId===id);
+  session.deckId=id;session.queue=q;session.pos=0;session.answers=0;
+  navigate('study');
+}
+
+/* ---------- 学习会话 ---------- */
+const session={deckId:null,queue:[],pos:0,answers:0,flipped:false};
+function posTagOf(backShort){
+  if(!backShort)return '';
+  const m=String(backShort).match(/^\s*\[([^\]\[]*)\]/);
+  return m?'['+m[1]+']':'';
+}
+function renderStudy(){
+  if(session.queue.length===0){renderStudyEmpty();return;}
+  if(session.pos>=session.queue.length){renderStudyDone();return;}
+  const item=session.queue[session.pos], c=item.card;
+  $('#studyDeckName').textContent=deckName(item.deckId)+' · '+esc(c.front);
+  const total=session.queue.length, pos=session.pos+1;
+  $('#studyPos').textContent=pos+' / '+total;
+  setRing($('#studyRingFg'),$('#studyRingPct'),session.answers,total);
+  session.flipped=false;
+  const tags=c.tags&&c.tags.length?c.tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join(''):'';
+  const backHtml=renderBack(c);
+  /* 正面只留词性标签（如 [adj]），中文释义留在背面 */
+  const posTag=(c.rev?'':posTagOf(c.backShort));
+  $('#studyArea').innerHTML=
+    '<div class="card3d" id="card3d">'+
+      '<div class="card-inner">'+
+        '<div class="card-face"><span class="card-front-word num">'+esc(c.front)+
+          (c.phon?'<small>'+esc(c.phon)+'</small>':'')+
+          speakerHtml(c.front,c.audio)+'</span>'+
+          (posTag?'<p class="card-phon">'+esc(posTag)+'</p>':'')+
+          (tags?'<div class="card-tags">'+tags+'</div>':'')+
+          '<span class="card-hint">点击卡片查看答案</span></div>'+
+        '<div class="card-face back"><div class="back-scroll">'+backHtml+'</div></div>'+
+      '</div></div>'+
+    '<div class="rate-row" id="rateRow" hidden>'+
+      rateBtn('again','重来',intervalLabel(c,RATING.AGAIN))+
+      rateBtn('hard','困难',intervalLabel(c,RATING.HARD))+
+      rateBtn('good','良好',intervalLabel(c,RATING.GOOD))+
+      rateBtn('easy','简单',intervalLabel(c,RATING.EASY))+
+    '</div>';
+  $('#card3d').addEventListener('click',e=>{
+    const sp=e.target.closest('.speaker');
+    if(sp){playWordAudio(sp.dataset.word,sp.dataset.audio||'');return;}
+    flipCard();
+  });
+  $$('#rateRow .rate-btn').forEach(b=>b.addEventListener('click',e=>e.stopPropagation()));
+  $('#rateRow .rate-btn.rate-again').addEventListener('click',()=>rate(RATING.AGAIN));
+  $('#rateRow .rate-btn.rate-hard').addEventListener('click',()=>rate(RATING.HARD));
+  $('#rateRow .rate-btn.rate-good').addEventListener('click',()=>rate(RATING.GOOD));
+  $('#rateRow .rate-btn.rate-easy').addEventListener('click',()=>rate(RATING.EASY));
+}
+function rateBtn(k,label,iv){
+  return '<button class="rate-btn rate-'+k+'"><span class="k">'+label+'</span><span class="iv num">'+iv+'</span></button>';
+}
+function intervalLabel(c,rating){
+  const s=getScheduler();
+  try{return fmtInterval(s.nextIntervals(c,rating));}catch(e){return '';}
+}
+function deckName(id){const d=state.decks.find(x=>x.id===id);return d?d.name:'未知牌组';}
+function speakerHtml(word,audio){
+  return '<button class="speaker" data-word="'+esc(word)+'" data-audio="'+esc(audio||'')+'" aria-label="播放发音">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>';
+}
+function voiceType(){return state.settings.voice==='us'?2:1;}
+function wordAudioUrl(word,audio){
+  if(audio){
+    if(/^https?:\/\//i.test(audio))return audio;
+    if(audio.indexOf('&type=')>-1){
+      const parts=audio.split('&type=');
+      return 'https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(parts[0])+'&type='+(parts[1]||voiceType());
+    }
+    return 'https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(audio)+'&type='+voiceType();
+  }
+  return 'https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(word)+'&type='+voiceType();
+}
+function playWordAudio(word,audio){
+  const src=wordAudioUrl(word,audio);
+  const a=new Audio(src);
+  a.play().then(()=>{playWordAudio._last=a;}).catch(()=>{
+    if(voiceType()===2){ /* 美音失败回退英音 */
+      const alt=wordAudioUrl(word,audio).replace('type=2','type=1');
+      const b=new Audio(alt);b.play().catch(()=>toast('发音失败，请检查网络'));
+    }else{toast('发音失败，请检查网络');}
+  });
+}
+function renderBack(c){
+  let h='';
+  if(c.back){
+    h+='<div class="back-head"><p class="back-meaning">'+esc(c.back).replace(/\n/g,'<br>')+'</p>'+
+      speakerHtml(c.front,c.audio)+'</div>';
+  }
+  if(c.examples&&c.examples.length){
+    h+='<div class="back-block"><h4>例句</h4>'+
+      c.examples.map(e=>'<p>'+esc(e.en)+'<br><span class="cn">'+esc(e.cn)+'</span></p>').join('')+'</div>';
+  }
+  if(c.examSentence){
+    h+='<div class="back-block"><h4>真题例句</h4><p>'+esc(c.examSentence.en)+
+      (c.examSentence.src?' <span class="src">('+esc(c.examSentence.src)+')</span>':'')+
+      (c.examSentence.cn?'<br><span class="cn">'+esc(c.examSentence.cn)+'</span>':'')+'</p></div>';
+  }
+  if(c.phrase){
+    h+='<div class="back-block"><h4>短语</h4>'+c.phrase.map(p=>'<p>'+esc(p.en)+' — <span class="cn">'+esc(p.cn)+'</span></p>').join('')+'</div>';
+  }
+  if(c.examQ){
+    h+='<div class="back-block"><h4>真题选择</h4><p>'+esc(c.examQ.q)+'</p><p>'+
+      c.examQ.choices.map((ch,i)=>'<span>'+(i+1)+'. '+esc(ch)+'</span>').join('　')+'</p>'+
+      '<p><b style="color:var(--accent-deep);">答案：'+esc(c.examQ.answer)+'</b></p>'+
+      (c.examQ.explain?'<p class="cn">'+esc(c.examQ.explain)+'</p>':'')+'</div>';
+  }
+  if(c.rem){
+    h+='<div class="back-rem"><h4>助记</h4>'+esc(c.rem)+'</div>';
+  }
+  if(!h)h='<p class="back-meaning">（空白）</p>';
+  return h;
+}
+function flipCard(){
+  const el=$('#card3d');if(!el)return;
+  clearTimeout(flipCard._t);
+  const inner=el.querySelector('.card-inner');
+  inner.style.transform='';  /* 清除上次回弹的 inline 值 */
+  session.flipped=!session.flipped;
+  el.classList.toggle('flipped',session.flipped);
+  $('#rateRow').hidden=!session.flipped;
+  /* 翻转完成后轻微回弹（scale 1.02→1），结束后清空 inline 避免覆盖 class */
+  flipCard._t=setTimeout(()=>{
+    if(!el.isConnected)return;
+    el.classList.add('settle');
+    inner.style.transition='transform 160ms var(--ease-out)';
+    inner.style.transform=session.flipped?'rotateY(180deg) scale(1.02)':'scale(1.02)';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      inner.style.transform=session.flipped?'rotateY(180deg) scale(1)':'scale(1)';
+      setTimeout(()=>{
+        el.classList.remove('settle');
+        inner.style.transition='';
+        inner.style.transform='';
+      },180);
+    }));
+  },reduceMotion?1:420);
+}
+function rate(r){
+  const item=session.queue[session.pos];if(!item)return;
+  const c=item.card;
+  const s=getScheduler();
+  const updated=s.schedule(c,r);
+  const wasNew=c.state==='new';
+  Object.assign(c,updated);
+  state.log.push({ts:Date.now(),day:todayKey(),cardId:c.id,rating:r,wasNew});
+  session.answers++;
+  session.pos++;
+  saveState();
+  renderStudy();
+}
+function renderStudyEmpty(){
+  $('#studyDeckName').textContent='';
+  $('#studyPos').textContent='0 / 0';
+  setRing($('#studyRingFg'),$('#studyRingPct'),0,1);
+  $('#studyArea').innerHTML='<div class="glass card study-done"><h2>现在没有待学习的卡片</h2>'+
+    '<p>所有到期卡片已复习完毕。休息一下，或去牌组里看看。</p>'+
+    '<button class="btn btn-primary" data-route="decks" onclick="navigate(\'decks\')">返回牌组</button></div>';
+}
+function renderStudyDone(){
+  $('#studyPos').textContent=session.answers+' / '+session.queue.length;
+  const left=buildQueue().length;
+  $('#studyArea').innerHTML='<div class="glass card study-done"><h2>本轮完成</h2>'+
+    '<p class="num">本轮复习 '+session.answers+' 张卡片</p>'+
+    '<button class="btn btn-primary" onclick="session.queue=buildQueue();session.pos=0;session.answers=0;renderStudy();">再来一轮</button>'+
+    '<p class="next-line num">队列中仍待学习：'+left+' 张</p></div>';
+}
+function setRing(fg,pctEl,cur,total){
+  const pct=total?Math.min(1,cur/total):0;
+  const R=19,C=2*Math.PI*R;
+  if(fg){fg.style.transition='stroke-dashoffset '+(reduceMotion?'1ms':320+'ms var(--ease-out)');fg.style.strokeDashoffset=(C*(1-pct)).toFixed(2);}
+  if(pctEl)animateNumber(pctEl,Math.round(pct*100),'%');
+}
+
+/* ---------- 日历视图 ---------- */
+let calCursor=null;
+function renderCalendar(){
+  const now=new Date();
+  if(!calCursor)calCursor=new Date(now.getFullYear(),now.getMonth(),1);
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();
+  $('#calTitle').textContent=y+' 年 '+(m+1)+' 月';
+  const first=new Date(y,m,1);
+  const daysIn=new Date(y,m+1,0).getDate();
+  const lead=(first.getDay()+6)%7; /* 周一开头 */
+  const todayK=todayKey();
+  const endOfToday=new Date();endOfToday.setHours(23,59,59,999);
+  /* 统计每天学习张数 */
+  const learned={};
+  for(const l of state.log){
+    const d=String(l.day);
+    learned[d]=(learned[d]||0)+1;
+  }
+  let html='';
+  for(let i=0;i<lead;i++)html+='<div class="cal-day blank"></div>';
+  for(let d=1;d<=daysIn;d++){
+    const dt=new Date(y,m,d);
+    const key=keyOf(dt);
+    const isToday=key===todayK;
+    const isFuture=dt.getTime()>endOfToday.getTime();
+    const cnt=learned[key]||0;
+    let cls='cal-day';
+    if(isFuture)cls+=' future';
+    else if(cnt>0)cls+=' good';
+    else cls+=' bad';
+    if(isToday)cls+=' today';
+    html+='<div class="'+cls+'" data-key="'+key+'" data-date="'+d+'" role="gridcell">'+
+      '<span class="d num">'+d+'</span>'+
+      '<span class="cnt num">'+(cnt>0?cnt+' 张':'')+'</span></div>';
+  }
+  $('#calGrid').innerHTML=html;
+  /* 状态行 */
+  const cur=$('#calStatus');cur.textContent='';
+  if(y===now.getFullYear()&&m===now.getMonth()){
+    cur.innerHTML='本月已学 <b class="num">'+todayMonthLearned()+'</b> 天 · 今日'+(learned[todayK]?'已学 <b class="num">'+learned[todayK]+'</b> 张':'还未学习，点击今天的日期开始')+'。';
+  }else if(new Date(y,m,1)>endOfToday){
+    cur.textContent='这个月还没开始。';
+  }else{
+    const monthLearned=Object.keys(learned).filter(k=>k.startsWith(y+'-'+String(m+1).padStart(2,'0'))).length;
+    cur.innerHTML='该月已学 <b class="num">'+monthLearned+'</b> 天。';
+  }
+}
+function todayMonthLearned(){
+  const k=todayKey().slice(0,7);
+  const set=new Set(state.log.filter(l=>String(l.day).startsWith(k)).map(l=>l.day));
+  return set.size;
+}
+function startTodayStudy(){
+  session.deckId=null;session.queue=buildQueue();session.pos=0;session.answers=0;
+  navigate('study');
+}
+$('#calPrev').addEventListener('click',()=>{
+  calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()-1,1);
+  renderCalendar();
+});
+$('#calNext').addEventListener('click',()=>{
+  calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()+1,1);
+  renderCalendar();
+});
+$('#calGrid').addEventListener('click',e=>{
+  const el=e.target.closest('.cal-day');
+  if(!el||el.classList.contains('blank'))return;
+  const key=el.dataset.key;
+  const status=$('#calStatus');
+  if(key===todayKey()){
+    startTodayStudy();
+    return;
+  }
+  const dt=new Date(key+'T00:00:00');
+  const endOfToday=new Date();endOfToday.setHours(23,59,59,999);
+  const cnt=(state.log.filter(l=>String(l.day)===key)).length;
+  const label=(dt.getMonth()+1)+' 月 '+dt.getDate()+' 日';
+  if(dt.getTime()>endOfToday.getTime())status.textContent=label+' · 还未到这一天。';
+  else if(cnt>0)status.innerHTML=label+' · 学习了 <b class="num">'+cnt+'</b> 张。';
+  else status.textContent=label+' · 未学习。';
+});
+
+/* ---------- 数字滚动 ---------- */
+let animToken=0;
+function animateNumber(el,target,suffix){
+  const token=++animToken;
+  const from=parseInt(el.dataset.v||'0',10);
+  if(reduceMotion||target===from){el.textContent=target+suffix;el.dataset.v=target;return;}
+  const dur=380,start=performance.now();
+  const step=now=>{
+    const t=Math.min(1,(now-start)/dur);
+    const v=Math.round(from+(target-from)*(1-Math.pow(1-t,3)));
+    el.textContent=v+suffix;el.dataset.v=v;
+    if(t<1&&token===animToken)requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/* ---------- 统计视图 ---------- */
+function renderStats(){
+  const now=Date.now();
+  const today=todayKey();
+  const todayLog=state.log.filter(l=>l.day===today);
+  const learnedToday=state.log.filter(l=>l.day===today&&l.wasNew).length;
+  const total=cardCount();
+  const dist={new:0,learning:0,review:0,mature:0};
+  for(const d of state.decks)for(const c of d.cards){
+    if(c.state==='new')dist.new++;
+    else if(c.state==='learning')dist.learning++;
+    else if(c.interval>=21)dist.mature++;
+    else dist.review++;
+  }
+  const mature=dist.mature;
+  $('#kpiStrip').innerHTML=
+    kpi('今日复习',todayLog.length,'次','')+
+    kpi('今日新学',learnedToday,'张','')+
+    kpi('累计复习',state.log.length,'次','')+
+    kpi('已掌握',mature,'张','mature 21天+');
+  renderDistRing(dist,total);
+  renderBars();
+}
+function kpi(label,val,unit,sub){
+  return '<div class="kpi-cell"><div class="kpi-label">'+label+'</div><div class="kpi-value num">'+fmtNum(val)+'<small>'+unit+'</small></div>'+
+    (sub?'<div class="kpi-sub">'+sub+'</div>':'')+'</div>';
+}
+const DIST_COLORS=['var(--control)','#B45309','var(--accent)','var(--positive)'];
+const DIST_NAMES=['新卡','学习中','复习中','已成熟'];
+function renderDistRing(dist,total){
+  const R=52,C=2*Math.PI*R;
+  let acc=0,segs='';
+  const vals=[dist.new,dist.learning,dist.review,dist.mature];
+  vals.forEach((v,i)=>{
+    if(v<=0)return;
+    const frac=v/total;
+    const off=-(acc/total)*C;
+    const len=C*frac;
+    const dash=(frac>=1)?(C+' '+0):(len+' '+Math.max(1.5,C-len));
+    segs+='<circle cx="66" cy="66" r="52" fill="none" stroke="'+DIST_COLORS[i]+'" stroke-width="9" stroke-dasharray="'+dash+'" stroke-dashoffset="'+off.toFixed(1)+'"/>';
+    acc+=v;
+  });
+  $('#distRing').innerHTML=segs;
+  $('#distTotal').textContent=fmtNum(total);
+  $('#distLegend').innerHTML=vals.map((v,i)=>
+    '<div class="legend-row"><span class="dot" style="background:'+DIST_COLORS[i]+'"></span>'+
+    '<span class="name">'+DIST_NAMES[i]+'</span><span class="val num">'+fmtNum(v)+'</span>'+
+    '<span class="pct num">'+(total?(Math.round(v/total*100)):0)+'%</span></div>').join('');
+}
+function renderBars(){
+  const days=[],map={};
+  for(let i=13;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    days.push(k);map[k]=0;
+  }
+  state.log.forEach(l=>{if(map[l.day]!==undefined)map[l.day]++;});
+  const max=Math.max(1,...days.map(k=>map[k]));
+  const W=560,H=150,padB=18,padL=30,padT=10;
+  const n=days.length,bw=(W-padL)/n;
+  let bars='';
+  days.forEach((k,i)=>{
+    const v=map[k];
+    const h=v?Math.max(3,(H-padB-padT)*v/max):0;
+    bars+='<rect x="'+(padL+i*bw+bw*0.22)+'" y="'+(H-padB-h)+'" width="'+(bw*0.56)+'" height="'+h+'" rx="3" fill="'+(v?((k===days[13])?'var(--accent-deep)':'var(--accent)'):'var(--rule)')+'"/>';
+  });
+  let labels='';
+  days.forEach((k,i)=>{
+    if(i%2===0)labels+='<text x="'+(padL+i*bw+bw/2)+'" y="'+(H-4)+'" font-size="11" fill="var(--faint)" text-anchor="middle">'+String(new Date(k).getDate())+'</text>';
+  });
+  let grid='';
+  for(let g=0;g<=4;g++){
+    const y=padT+(H-padB-padT)*g/4;
+    grid+='<line x1="'+padL+'" y1="'+y+'" x2="'+W+'" y2="'+y+'" stroke="var(--rule)" stroke-width="1"/>';
+  }
+  $('#barChart').innerHTML='<svg class="bars-chart" viewBox="0 0 '+W+' '+H+'" aria-label="最近14天复习柱状图">'+grid+bars+labels+'</svg>';
+  $('#chartNote').textContent='每日复习次数 · 今天为深色 · 共 '+state.log.length+' 次累计';
+}
+
+/* ---------- 编辑视图 ---------- */
+let editorFilter={deck:'all',q:''};
+function renderEditor(){
+  const sel=$('#editorDeckSelect');
+  const cur=editorFilter.deck;
+  sel.innerHTML='<option value="all">全部牌组</option>'+state.decks.map(d=>'<option value="'+d.id+'">'+esc(d.name)+' ('+d.cards.length+')</option>').join('');
+  sel.value=cur;
+  const q=editorFilter.q.toLowerCase();
+  let rows=[];
+  for(const d of state.decks){
+    if(editorFilter.deck!=='all'&&editorFilter.deck!==d.id)continue;
+    for(const c of d.cards){
+      if(q&&!String(c.front).toLowerCase().includes(q)&&!String(c.back||'').toLowerCase().includes(q))continue;
+      rows.push({deckId:d.id,deckName:d.name,card:c});
+    }
+  }
+  $('#editorSub').textContent='共 '+rows.length+' 张卡片';
+  $('#cardList').innerHTML=rows.length?rows.map(r=>{
+    const due=r.card.due<=Date.now()&&r.card.state!=='new';
+    const stateLbl=r.card.state==='new'?'新卡':r.card.state==='learning'?'学习中':'复习';
+    const meta=stateLbl+(r.card.interval>=21?' · 成熟':'')+(due?' · <span style="color:var(--negative)">待复习</span>':'');
+    return '<div class="glass card-item">'+
+      '<span class="front">'+esc(r.card.front)+(r.card.rev?'<small>↔ 反转</small>':'')+'</span>'+
+      '<span class="meta num">'+meta+'</span>'+
+      '<span class="ops"><button class="icon-btn" aria-label="编辑" onclick="openCardModal(\''+r.card.id+'\',\''+r.deckId+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>'+
+      '<button class="icon-btn danger" aria-label="删除" onclick="deleteCard(\''+r.card.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></div>';
+  }).join(''):'<div class="empty"><h3>没有匹配的卡片</h3><p>换个关键词，或新建一张卡片。</p></div>';
+}
+$('#editorSearch').addEventListener('input',e=>{editorFilter.q=e.target.value;renderEditor();});
+$('#editorDeckSelect').addEventListener('change',e=>{editorFilter.deck=e.target.value;renderEditor();});
+
+/* ---------- 卡片编辑 modal ---------- */
+let editingCard=null,editingDeck=null;
+function openCardModal(cardId,deckId){
+  editingCard=cardId||null;editingDeck=deckId||(state.decks[0]&&state.decks[0].id)||null;
+  const c=cardId?findCard(cardId):null;
+  $('#cardModalTitle').textContent=cardId?'编辑卡片':'新建卡片';
+  $('#fFront').value=c?c.front:'';
+  $('#fBack').value=c?c.back:'';
+  $('#fDeck').innerHTML=state.decks.map(d=>'<option value="'+d.id+'"'+(d.id===editingDeck?' selected':'')+'>'+esc(d.name)+'</option>').join('');
+  $('#fReverse').classList.toggle('on',!!(c&&c.rev));
+  $('#fReverse').setAttribute('aria-checked',c&&c.rev?'true':'false');
+  $('#fTags').value=c&&c.tags?c.tags.join(', '):'';
+  $('#cardModal').classList.add('open');
+  $('#fFront').focus();
+}
+function closeCardModal(){$('#cardModal').classList.remove('open');}
+$('#modalCancel').addEventListener('click',closeCardModal);
+$('#cardModal').addEventListener('click',e=>{if(e.target.id==='cardModal')closeCardModal();});
+$('#fReverse').addEventListener('click',function(){
+  this.classList.toggle('on');
+  this.setAttribute('aria-checked',this.classList.contains('on')?'true':'false');
+});
+$('#modalSave').addEventListener('click',()=>{
+  const front=$('#fFront').value.trim(),back=$('#fBack').value.trim();
+  const deckId=$('#fDeck').value,rev=$('#fReverse').classList.contains('on');
+  const tags=$('#fTags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  if(!front){toast('正面内容不能为空');return;}
+  const d=state.decks.find(x=>x.id===deckId);
+  if(!d){toast('牌组不存在');return;}
+  if(editingCard){
+    const c=findCard(editingCard);
+    c.front=front;c.back=back;c.tags=tags;c.rev=rev;
+    /* 反转卡：同步更新配对卡 */
+    if(c.pairId){
+      const p=findCard(c.pairId);
+      if(p){p.front=back;p.back=front;p.tags=tags;p.rev=true;}
+    }else if(rev){
+      const p={id:uid(),deckId,front:back,back:front,tags,tagsCopy:tags,rev:true,pairId:c.id,state:'new',due:0,interval:0,reps:0,lapses:0,ease:2.5,created:Date.now()};
+      c.pairId=p.id;d.cards.push(p);
+    }
+  }else{
+    const id=uid();
+    d.cards.push({id,deckId,front,back,tags,rev:false,state:'new',due:0,interval:0,reps:0,lapses:0,ease:2.5,created:Date.now()});
+    if(rev){
+      const pid=uid();
+      d.cards.push({id:pid,deckId,front:back,back:front,tags,rev:true,pairId:id,state:'new',due:0,interval:0,reps:0,lapses:0,ease:2.5,created:Date.now()});
+      const c=d.cards.find(x=>x.id===id);c.pairId=pid;
+    }
+  }
+  saveState();closeCardModal();renderAll();toast('已保存');
+});
+function findCard(id){
+  for(const d of state.decks){const c=d.cards.find(x=>x.id===id);if(c)return c;}
+  return null;
+}
+function deleteCard(id){
+  if(!confirm('删除这张卡片？（反转卡会一并删除）'))return;
+  for(const d of state.decks){
+    const i=d.cards.findIndex(x=>x.id===id);
+    if(i>=0){
+      const c=d.cards[i];
+      if(c.pairId)d.cards=d.cards.filter(x=>x.id!==c.pairId);
+      d.cards.splice(i,1);
+      break;
+    }
+  }
+  saveState();renderAll();toast('已删除');
+}
+$('#addCardBtn').addEventListener('click',()=>openCardModal());
+
+/* ---------- 设置视图 ---------- */
+function renderSettings(){
+  $('#storageInfo').textContent=(JSON.stringify(state).length/1024/1024).toFixed(2)+' MB · '+cardCount()+' 张卡 · '+state.log.length+' 条记录';
+  const usage=Math.min(1,(JSON.stringify(state).length/1024/1024)/5);
+  /* 占位容量提示 */
+  const g=state.decks.find(x=>x.name==='四级词汇');
+  $$('#schedGroup button').forEach(b=>b.classList.toggle('on',b.dataset.sched===state.settings.scheduler));
+  $$('#voiceGroup button').forEach(b=>b.classList.toggle('on',b.dataset.voice===state.settings.voice));
+  $$('#orderGroup button').forEach(b=>b.classList.toggle('on',b.dataset.order===state.settings.order));
+  $('#newPerDay').value=state.settings.newPerDay;
+}
+$('#importBtn').addEventListener('click',()=>$('#fileInput').click());
+$('#exportCsvBtn').addEventListener('click',exportCsv);
+$('#exportJsonBtn').addEventListener('click',exportJson);
+$('#resetStatsBtn').addEventListener('click',()=>{
+  if(!confirm('清空全部学习记录与调度状态？（卡片数据保留，全部回到新卡）'))return;
+  for(const d of state.decks)for(const c of d.cards){c.state='new';c.due=0;c.interval=0;c.reps=0;c.lapses=0;c.ease=2.5;}
+  state.log=[];
+  saveState();renderAll();toast('学习记录已清空');
+});
+$('#resetAllBtn').addEventListener('click',()=>{
+  if(!confirm('清空全部数据？此操作不可恢复。'))return;
+  localStorage.removeItem(LS_KEY);
+  location.reload();
+});
+$('#cleanBasicBtn').addEventListener('click',()=>{
+  let removed=0;
+  for(const d of state.decks){
+    const ids=new Set();
+    for(const c of d.cards){
+      if(BASE_WORDS.has(String(c.front).toLowerCase().trim())){
+        ids.add(c.id);
+        if(c.pairId)ids.add(c.pairId); /* 连配对的反转卡一起删 */
+      }
+    }
+    if(ids.size){
+      d.cards=d.cards.filter(c=>!ids.has(c.id));
+      removed+=ids.size;
+    }
+  }
+  if(removed){saveState();renderAll();toast('已清理 '+removed+' 张基础词卡片');}
+  else toast('没有发现基础词卡片');
+});
+$('#newPerDay').addEventListener('change',e=>{
+  const v=parseInt(e.target.value,10);
+  if(!v||v<1){toast('请输入有效数字');e.target.value=state.settings.newPerDay;return;}
+  state.settings.newPerDay=Math.min(200,v);
+  saveState();toast('已更新每日新卡上限');
+});
+$$('#schedGroup button').forEach(b=>b.addEventListener('click',()=>{
+  state.settings.scheduler=b.dataset.sched;
+  saveState();renderAll();toast('调度算法：'+(b.dataset.sched==='sm2'?'SM-2':'FSRS（实验，回落 SM-2）'));
+}));
+$$('#voiceGroup button').forEach(b=>b.addEventListener('click',()=>{
+  state.settings.voice=b.dataset.voice;
+  saveState();renderSettings();toast('发音音色：'+(b.dataset.voice==='uk'?'英音':'美音'));
+}));
+$$('#orderGroup button').forEach(b=>b.addEventListener('click',()=>{
+  state.settings.order=b.dataset.order;
+  saveState();renderSettings();toast('出卡顺序：'+(b.textContent||''));
+}));
+
+/* ---------- 导入 ---------- */
+$('#fileInput').addEventListener('change',async e=>{
+  const files=Array.from(e.target.files||[]);
+  e.target.value='';
+  if(!files.length)return;
+  let total=0,added=0,dups=0,upd=0;
+  const deck=state.decks.find(x=>x.name==='四级词汇')||state.decks[0];
+  for(const f of files){
+    const text=await f.text();
+    const r=parseImport(text,f.name);
+    if(r.kind==='error'){toast('无法识别 '+f.name);continue;}
+    if(r.kind==='csv'){ /* 每行一条卡 */
+      for(const row of r.rows){
+        if(!row.front)continue;
+        if(addCardOnce(deck,row))added++;else dups++;
+      }
+    }else if(r.kind==='words'){ /* bundle / CET4 JSONL */
+      for(const w of r.words){
+        if(!w.w)continue;
+        const st=addWordOnce(deck,w);
+        if(st==='added')added++;else if(st==='dup')dups++;else if(st==='updated')upd++;
+      }
+    }else if(r.kind==='anki'){ /* Anki 兼容 */
+      for(const row of r.rows){
+        if(!row.front)continue;
+        if(addCardOnce(deck,row))added++;else dups++;
+      }
+    }
+    total+=r.count||0;
+  }
+  saveState();renderAll();
+  toast('导入完成：新增 '+added+' 张，跳过重复 '+dups+' 张'+(upd?'，补全相关词 '+upd+' 张':''));
+});
+function addCardOnce(deck,row){
+  const key=String(row.front||'').toLowerCase().trim();
+  if(!key)return false;
+  if(deck.cards.some(c=>String(c.front).toLowerCase().trim()===key))return false;
+  const card={id:uid(),deckId:deck.id,front:row.front,back:row.back||'',tags:row.tags||[],
+    rev:false,state:'new',due:0,interval:0,reps:0,lapses:0,ease:2.5,created:Date.now()};
+  if(row.audio||row.au)card.audio=row.audio||row.au;
+  deck.cards.push(card);
+  return true;
+}
+function addWordOnce(deck,w){
+  const key=String(w.w||'').toLowerCase().trim();
+  if(!key)return 'dup';
+  const exist=deck.cards.find(c=>String(c.front).toLowerCase().trim()===key);
+  if(exist){
+    let changed=false;
+    if(!exist.sy&&w.sy){exist.sy=w.sy;changed=true;}
+    if(!exist.an&&w.an){exist.an=w.an;changed=true;}
+    if(exist.rem===undefined&&w.rm){exist.rem=w.rm;changed=true;}
+    return changed?'updated':'dup';
+  }
+  const card={id:uid(),deckId:deck.id,front:w.w,back:(w.t||[]).map(t=>(t.pos?'['+t.pos+'] ':'')+t.tran).join('；'),
+    tags:['CET4'],rev:false,state:'new',due:0,interval:0,reps:0,lapses:0,ease:2.5,created:Date.now(),
+    phon:w.p?w.p:'',backShort:''};
+  if(w.au)card.audio=w.au;
+  if(w.ex&&w.ex.length){card.examples=w.ex.slice(0,2).map(x=>({en:x.en,cn:x.cn}));}
+  if(w.xe&&w.xe.length){card.examSentence={en:w.xe[0].en,cn:'',src:w.xe[0].paper||''};}
+  if(w.ph&&w.ph.length){card.phrase=w.ph.slice(0,2).map(p=>({en:p.en,cn:p.cn}));}
+  if(w.q&&w.q.length){card.examQ={q:w.q[0].q,choices:w.q[0].choices,answer:w.q[0].answer,explain:w.q[0].explain};}
+  if(w.rm)card.rem=w.rm;
+  if(w.sy)card.sy=w.sy;
+  if(w.an)card.an=w.an;
+  if(card.backShort===''&&w.t&&w.t.length){
+    const t0=w.t[0];
+    card.backShort=(t0.pos?'['+t0.pos+'] ':'')+t0.tran;
+  }
+  deck.cards.push(card);
+  return 'added';
+}
+function parseImport(text,fileName){
+  const t=text.trim();
+  /* 尝试 JSON */
+  if(t[0]==='{'||t[0]==='['){
+    try{
+      const data=JSON.parse(t);
+      if(Array.isArray(data)){
+        if(data.length&&data[0]&&('w'in data[0]||'headWord'in data[0])){
+          /* bundle 或 CET4 JSONL 数组 */
+          const words=data.map(w=>({w:(w.w||w.headWord||'').toLowerCase(),p:w.p||'',
+            t:w.t||[],ex:w.ex||[],xe:w.xe||[],ph:w.ph||[],q:w.q||[],rm:w.rm||'',sy:w.sy,an:w.an}));
+          return {kind:'words',words,count:words.length};
+        }
+        return {kind:'anki',rows:data.map(x=>({front:x.front||x.f||'',back:x.back||x.b||'',tags:x.tags||[]})),count:data.length};
+      }
+      if(data.decks&&Array.isArray(data.decks)){
+        const rows=[];
+        data.decks.forEach(d=>(d.cards||[]).forEach(c=>rows.push({front:c.front,back:c.back,tags:c.tags||[]})));
+        return {kind:'anki',rows,count:rows.length};
+      }
+      return {kind:'anki',rows:[],count:0};
+    }catch(err){ /* fallthrough to csv */ }
+  }
+  /* CSV / TSV: front,back,tags（跳过表头行，支持引号内逗号/双引号） */
+  const delim=t.includes('\t')?'\t':',';
+  const lines=t.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length)return {kind:'error'};
+  const rows=[];
+  const splitRow=(line)=>{
+    const out=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(inQ){
+        if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else inQ=false; }
+        else cur+=ch;
+      }else if(ch==='"'){ inQ=true; }
+      else if(ch===delim){ out.push(cur);cur=''; }
+      else cur+=ch;
+    }
+    out.push(cur);
+    return out;
+  };
+  for(let i=0;i<lines.length;i++){
+    const parts=splitRow(lines[i]);
+    if(parts.length>=2)rows.push({front:parts[0],back:parts[1],tags:(parts[2]||'').split(/[;,，]/).map(s=>s.trim()).filter(Boolean)});
+  }
+  /* 首行若是表头（front,back,tags）则剔除 */
+  if(rows.length&&(/^(front|question|word)$/i.test(String(rows[0].front))&&/^(back|answer)$/i.test(String(rows[0].back)))){
+    rows.shift();
+  }
+  return {kind:'csv',rows,count:rows.length};
+}
+function exportCsv(){
+  const rows=[['front','back','tags']];
+  for(const d of state.decks)for(const c of d.cards)rows.push([c.front,c.back||'',(c.tags||[]).join(';')]);
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  download('CET4-anki-export.csv',csv);
+  toast('已导出 CSV（可导入 Anki）');
+}
+function exportJson(){
+  download('CET4-anki-backup.json',JSON.stringify(state,null,1));
+  toast('已导出 JSON 备份');
+}
+function download(name,content){
+  const blob=new Blob(['\uFEFF'+content],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},400);
+}
+
+/* ---------- 事件绑定 ---------- */
+$$('.nav-item').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
+$('#startBtn').addEventListener('click',()=>{
+  session.deckId=null;session.queue=buildQueue();session.pos=0;session.answers=0;
+  navigate('study');
+});
+/* ---------- 初始化 ---------- */
+loadState();
+if(!state.decks.some(d=>d.name==='四级词汇')){
+  state.decks.unshift({id:'d1',name:'四级词汇',cards:[]});
+}
+navigate('decks');
+</script>
+</body>
+</html>
